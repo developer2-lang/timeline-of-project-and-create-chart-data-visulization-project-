@@ -4,7 +4,7 @@ import { add, diff, fmt, fmtS, iso, monday, pd, today } from '../utils/dateUtils
 import { holidayMatch, offDay } from '../utils/workingDays';
 import { schedule, span } from '../utils/timelineCalculations';
 
-const DAY_W = 9;
+const DAY_W = 22;
 
 interface GanttChartProps {
   project: ProjectTimeline;
@@ -94,7 +94,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
     const x = dayPos(d.start);
     const barDays = Math.max(1, diff(pd(d.start) as Date, pd(d.end) as Date) + 1);
     const w = barDays * DAY_W;
-    const showLabel = w > 40;
+    const showLabel = w >= 36;
 
     return (
       <div className="tl-row" key={d.id}>
@@ -104,7 +104,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
             {fmtS(d.start)} → {fmtS(d.end)} · {d.durationDays}d
           </div>
         </div>
-        <div className="tl-track" style={{ width: total, minWidth: total, height: 52 }}>
+        <div className="tl-track" style={{ width: total, minWidth: total }}>
           <div className="tl-grid-bg">
             {Array.from({ length: n * 7 }, (_, di) => {
               const cellDate = add(s.w0, di);
@@ -141,20 +141,20 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
           {hoveredBar === d.id && (
             <div
               className="tl-tooltip"
-              style={{ left: Math.min(x, total - 200) }}
+              style={{ left: Math.min(x + w / 2, total - 220), transform: 'translateX(-50%)' }}
             >
               <div className="tl-tooltip-title">{d.name}</div>
               <div className="tl-tooltip-row">
-                <span>Start:</span> {fmt(d.start)}
+                <span>Start</span> {fmt(d.start)}
               </div>
               <div className="tl-tooltip-row">
-                <span>End:</span> {fmt(d.end)}
+                <span>End</span> {fmt(d.end)}
               </div>
               <div className="tl-tooltip-row">
-                <span>Duration:</span> {d.durationDays} working days
+                <span>Duration</span> {d.durationDays} working days
               </div>
               <div className="tl-tooltip-row">
-                <span>Dependency:</span>{' '}
+                <span>Dependency</span>{' '}
                 {d.dependencyType === 'after'
                   ? 'After the stages above it'
                   : d.dependencyType === 'with'
@@ -172,7 +172,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
     <div className="tl-wrap">
       <div className="tl">
         <div className="tl-row tl-head">
-          <div className="tl-lab" style={{ width: 320, minWidth: 320 }}>
+          <div className="tl-lab">
             <span>Stage</span>
           </div>
           <div className="tl-track" style={{ width: total, minWidth: total }}>
@@ -197,7 +197,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
           rowsEl
         ) : (
           <div className="tl-row">
-            <div style={{ padding: 26 }} className="muted">
+            <div style={{ padding: 32 }} className="muted">
               No stages added yet.
             </div>
           </div>
