@@ -607,6 +607,7 @@ h2::before {
 .tl-row {
   display: flex;
   border-bottom: 1px solid var(--line-soft);
+  min-height: 64px;
 }
 .tl-row:last-of-type {
   border-bottom: 0;
@@ -642,6 +643,7 @@ h2::before {
 .tl-track {
   position: relative;
   display: flex;
+  height: 64px;
 }
 .tl-grid-bg {
   position: absolute;
@@ -667,6 +669,9 @@ h2::before {
 .tl-head {
   background: #fafaf8;
   border-bottom: 1px solid var(--line);
+}
+.tl-head .tl-track {
+  height: auto;
 }
 .tl-head .tl-lab {
   background: #fafaf8;
@@ -1032,6 +1037,14 @@ table.d input[type='date'] {
   }
   .topbar-actions .demo-badge {
     display: none;
+  }
+  .tl-lab {
+    width: 200px;
+    min-width: 200px;
+    padding: 12px 14px;
+  }
+  .tl-lab .n {
+    font-size: 13px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
