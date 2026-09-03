@@ -7,10 +7,9 @@ export interface ProjectRow {
   client_name: string;
   project_code: string;
   start_date: string;
-  manager: string;
+  prepared_by: string;
   version: string;
   created_at?: string;
-  updated_at?: string;
 }
 
 function toTimeline(row: ProjectRow, stages: Stage[]): ProjectTimeline {
@@ -20,41 +19,27 @@ function toTimeline(row: ProjectRow, stages: Stage[]): ProjectTimeline {
     clientName: row.client_name || '',
     projectCode: row.project_code || '',
     startDate: row.start_date,
-    manager: row.manager || '',
+    preparedBy: row.prepared_by || '',
     version: row.version || 'R0',
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
     stages,
   };
 }
 
-function stageRowToStage(r: {
-  id: string;
-  project_id: string;
-  name: string;
-  description: string | null;
-  duration_days: number;
-  dependency_type: string;
-  offset_days: number;
-  fixed_start: string | null;
-  fixed_ref: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  stage_order: number;
-}): Stage {
+function stageRowToStage(r: Record<string, unknown>): Stage {
   return {
-    id: r.id,
-    projectId: r.project_id,
-    name: r.name,
-    description: r.description || '',
-    durationDays: r.duration_days,
+    id: r.id as string,
+    projectId: r.project_id as string,
+    name: (r.stage_name as string) || (r.name as string) || 'Untitled stage',
+    description: (r.description as string) || '',
+    durationDays: (r.duration_days as number) ?? 5,
     dependencyType: (r.dependency_type as Stage['dependencyType']) || 'after',
-    offsetDays: r.offset_days ?? 2,
-    fixedStart: r.fixed_start,
-    fixedRef: r.fixed_ref,
-    startDate: r.start_date,
-    endDate: r.end_date,
-    stageOrder: r.stage_order,
+    offsetDays: (r.offset_days as number) ?? 2,
+    fixedStart: (r.fixed_start as string) || null,
+    fixedRef: (r.fixed_ref as string) || null,
+    startDate: (r.start_date as string) || null,
+    endDate: (r.end_date as string) || null,
+    stageOrder: r.stage_order as number,
   };
 }
 
@@ -79,11 +64,11 @@ export async function fetchProjects(): Promise<ProjectTimeline[]> {
     byProject.set(st.projectId, list);
   });
 
-  return (projRows || []).map((r) => toTimeline(r, byProject.get(r.id) || []));
+  return (projRows || []).map((r) => toTimeline(r as ProjectRow, byProject.get(r.id) || []));
 }
 
 export async function createProject(
-  input: { projectName: string; clientName: string; projectCode: string; startDate: string; manager: string; version: string }
+  input: { projectName: string; clientName: string; projectCode: string; startDate: string; preparedBy: string }
 ): Promise<ProjectTimeline> {
   const { data, error } = await supabase!
     .from('projects')
@@ -92,8 +77,7 @@ export async function createProject(
       client_name: input.clientName,
       project_code: input.projectCode,
       start_date: input.startDate,
-      manager: input.manager,
-      version: input.version,
+      prepared_by: input.preparedBy,
     })
     .select()
     .single();
@@ -103,16 +87,14 @@ export async function createProject(
 
 export async function updateProject(
   id: string,
-  fields: Partial<Pick<ProjectTimeline, 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'manager' | 'version'>>
+  fields: Partial<Pick<ProjectTimeline, 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy'>>
 ): Promise<void> {
   const payload: Record<string, string | number> = {};
   if (fields.projectName !== undefined) payload.project_name = fields.projectName;
   if (fields.clientName !== undefined) payload.client_name = fields.clientName;
   if (fields.projectCode !== undefined) payload.project_code = fields.projectCode;
   if (fields.startDate !== undefined) payload.start_date = fields.startDate;
-  if (fields.manager !== undefined) payload.manager = fields.manager;
-  if (fields.version !== undefined) payload.version = fields.version;
-  payload.updated_at = new Date().toISOString();
+  if (fields.preparedBy !== undefined) payload.prepared_by = fields.preparedBy;
   const { error } = await supabase!.from('projects').update(payload).eq('id', id);
   if (error) throw error;
 }

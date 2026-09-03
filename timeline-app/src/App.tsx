@@ -1,3 +1,4 @@
+import { supabase } from "./supabaseClient";
 import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
@@ -11,11 +12,35 @@ import { isSupabaseConfigured } from './lib/supabase';
 import * as projectService from './services/projectService';
 import * as stageService from './services/stageService';
 import * as holidayService from './services/holidayService';
-import { demoHolidaysWithIds, buildDemoProjects, DEMO_HOLIDAYS, START_TEMPLATES } from './data/demoData';
-import { schedule } from './utils/timelineCalculations';
+import { demoHolidaysWithIds, buildDemoProjects, DEMO_HOLIDAYS, START_TEMPLATES, SUPERBASE_DEMO_PROJECTS } from './data/demoData';
+import { schedule, scheduleAppendedStage, syncScheduleDates } from './utils/timelineCalculations';
 import { uid } from './utils/dateUtils';
-import type { Holiday, ProjectTimeline, Stage, StudioSettings, ScheduleResult } from './types/timeline';
+import type { Holiday, ProjectTimeline, Stage, StageInput, StudioSettings, ScheduleResult } from './types/timeline';
 import type { NewProjectValues } from './components/ProjectForm';
+
+const STORAGE_KEY = 'iuova-timeline-data';
+
+interface StorageData {
+  projects: ProjectTimeline[];
+  holidays: Holiday[];
+  satRule: boolean;
+}
+
+function saveToStorage(projects: ProjectTimeline[], holidays: Holiday[], satRule: boolean) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ projects, holidays, satRule }));
+  } catch { /* quota exceeded — silently ignore */ }
+}
+
+function loadFromStorage(): StorageData | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StorageData;
+  } catch {
+    return null;
+  }
+}
 
 function latestAboveEnd(S: ScheduleResult[], i: number): string | null {
   let e: string | null = null;
@@ -52,10 +77,44 @@ function AppShell() {
 
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured) {
+      const stored = loadFromStorage();
+      if (stored) {
+        setProjects(stored.projects);
+        setHolidays(stored.holidays);
+        setSatRule(stored.satRule);
+      } else {
+        const hols = demoHolidaysWithIds();
+        setHolidays(hols);
+        const demoSpecs = buildDemoProjects(true, hols);
+        const demoProjects: ProjectTimeline[] = demoSpecs.map((spec) => ({
+          id: uid(),
+          projectName: spec.projectName,
+          clientName: spec.clientName,
+          projectCode: spec.projectCode,
+          startDate: spec.startDate,
+          preparedBy: spec.preparedBy,
+          version: spec.version,
+          stages: spec.stages.map((st, i) => ({
+            id: uid(),
+            projectId: '',
+            name: st.name,
+            description: st.desc,
+            durationDays: st.days,
+            dependencyType: (st.rule || 'after') as Stage['dependencyType'],
+            offsetDays: st.offset ?? 2,
+            fixedStart: null,
+            fixedRef: null,
+            startDate: null,
+            endDate: null,
+            stageOrder: i,
+          })),
+        }));
+        demoProjects.forEach((p) => {
+          p.stages.forEach((s) => { s.projectId = p.id; });
+        });
+        setProjects(demoProjects);
+      }
       setLoading(false);
-      setError(
-        'Supabase is not configured. Add your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to a .env file, then create the tables. You can still browse a local sample.'
-      );
       return;
     }
     setLoading(true);
@@ -67,9 +126,6 @@ function AppShell() {
       ]);
       setProjects(ps);
       if (hs.length) setHolidays(hs);
-      if (!ps.length) {
-        // Optionally seed demo holidays so calculations make sense.
-      }
     } catch (e) {
       console.error(e);
       setError('Could not load data from Supabase. Check your connection and try Reload.');
@@ -83,59 +139,66 @@ function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured && !loading) {
+      saveToStorage(projects, holidays, satRule);
+    }
+  }, [projects, holidays, satRule, loading]);
+
   const loadDemoData = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      toast('Supabase is not configured yet — enable it to insert demo data into the database.');
-      return;
-    }
-    setBusy(true);
-    try {
-      const existing = await projectService.fetchProjects();
-      if (existing.length > 0) {
-        toast('Demo data already exists — nothing duplicated.');
-        return;
-      }
-      const currentHols = await holidayService.fetchHolidays();
-      const existingDates = new Set(currentHols.map((h) => h.holidayDate));
-      const toAdd = DEMO_HOLIDAYS.filter((h) => !existingDates.has(h.holidayDate)).map((h) => ({
-        ...h,
+      const hols = demoHolidaysWithIds();
+      setHolidays(hols);
+      const demoSpecs = buildDemoProjects(satRule, hols);
+      const demoProjects: ProjectTimeline[] = demoSpecs.map((spec) => ({
         id: uid(),
-      }));
-      if (toAdd.length) {
-        await holidayService.insertManyHolidays(toAdd);
-        setHolidays((prev) => [...prev, ...toAdd]);
-      }
-
-      const engineHols = currentHols.length ? currentHols : demoHolidaysWithIds();
-      const demoSpecs = buildDemoProjects(satRule, engineHols);
-      for (const spec of demoSpecs) {
-        const created = await projectService.createProject({
-          projectName: spec.projectName,
-          clientName: spec.clientName,
-          projectCode: spec.projectCode,
-          startDate: spec.startDate,
-          manager: spec.manager,
-          version: spec.version,
-        });
-        const stages: Stage[] = spec.stages.map((st, i) => ({
+        projectName: spec.projectName,
+        clientName: spec.clientName,
+        projectCode: spec.projectCode,
+        startDate: spec.startDate,
+        preparedBy: spec.preparedBy,
+        version: spec.version,
+        stages: spec.stages.map((st, i) => ({
           id: uid(),
-          projectId: created.id,
+          projectId: '',
           name: st.name,
           description: st.desc,
           durationDays: st.days,
-          dependencyType: st.rule || 'after',
+          dependencyType: (st.rule || 'after') as Stage['dependencyType'],
           offsetDays: st.offset ?? 2,
           fixedStart: null,
           fixedRef: null,
           startDate: null,
           endDate: null,
           stageOrder: i,
-        }));
-        for (const st of stages) {
-          await stageService.createStage(st);
-        }
-        setProjects((prev) => [...prev, { ...created, stages }]);
+        })),
+      }));
+      demoProjects.forEach((p) => {
+        p.stages.forEach((s) => { s.projectId = p.id; });
+      });
+      setProjects(demoProjects);
+      toast('Demo data loaded locally.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const existing = await projectService.fetchProjects();
+      const existingCodes = new Set(existing.map((p) => p.projectCode));
+      if (SUPERBASE_DEMO_PROJECTS.some((d) => existingCodes.has(d.projectCode))) {
+        toast('Demo data already exists — nothing duplicated.');
+        return;
       }
+      for (const demo of SUPERBASE_DEMO_PROJECTS) {
+        const created = await projectService.createProject({
+          projectName: demo.projectName,
+          clientName: demo.clientName,
+          projectCode: demo.projectCode,
+          startDate: demo.startDate,
+          preparedBy: demo.preparedBy,
+        });
+        await stageService.insertStagesBulk(created.id, demo.stages);
+      }
+      await loadAll();
       toast('Demo data loaded into Supabase.');
     } catch (e) {
       console.error(e);
@@ -143,11 +206,14 @@ function AppShell() {
     } finally {
       setBusy(false);
     }
-  }, [satRule, toast]);
+  }, [loadAll, toast]);
 
   const clearAll = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      toast('Supabase is not configured yet.');
+      setProjects([]);
+      setHolidays(demoHolidaysWithIds());
+      localStorage.removeItem(STORAGE_KEY);
+      toast('All timelines cleared locally.');
       return;
     }
     setBusy(true);
@@ -168,10 +234,40 @@ function AppShell() {
 
   const createProject = useCallback(
     async (values: NewProjectValues): Promise<string | void> => {
+      const newId = uid();
+      const tpl = START_TEMPLATES.find((t) => t.id === values.templateId) || START_TEMPLATES[0];
+      const stages: Stage[] = tpl.stages.map((st, i) => ({
+        id: uid(),
+        projectId: newId,
+        name: st.name,
+        description: st.desc,
+        durationDays: st.days,
+        dependencyType: st.rule || 'after',
+        offsetDays: st.offset ?? 2,
+        fixedStart: null,
+        fixedRef: null,
+        startDate: null,
+        endDate: null,
+        stageOrder: i,
+      }));
+      const project: ProjectTimeline = {
+        id: newId,
+        projectName: values.projectName,
+        clientName: values.clientName,
+        projectCode: values.projectCode,
+        startDate: values.startDate,
+        preparedBy: values.preparedBy,
+        version: values.version,
+        stages,
+      };
+
       if (!isSupabaseConfigured) {
-        toast('Supabase is not configured yet — cannot save. Configure your .env to persist.');
-        return;
+        setProjects((prev) => [...prev, project]);
+        closeModal();
+        toast('Timeline created.');
+        return newId;
       }
+
       setBusy(true);
       try {
         const created = await projectService.createProject({
@@ -179,25 +275,11 @@ function AppShell() {
           clientName: values.clientName,
           projectCode: values.projectCode,
           startDate: values.startDate,
-          manager: values.manager,
-          version: values.version,
+          preparedBy: values.preparedBy,
         });
-        const tpl = START_TEMPLATES.find((t) => t.id === values.templateId) || START_TEMPLATES[0];
-        const stages: Stage[] = tpl.stages.map((st, i) => ({
-          id: uid(),
-          projectId: created.id,
-          name: st.name,
-          description: st.desc,
-          durationDays: st.days,
-          dependencyType: st.rule || 'after',
-          offsetDays: st.offset ?? 2,
-          fixedStart: null,
-          fixedRef: null,
-          startDate: null,
-          endDate: null,
-          stageOrder: i,
-        }));
-        for (const st of stages) await stageService.createStage(st);
+        for (const st of stages) {
+          await stageService.createStage({ ...st, projectId: created.id });
+        }
         setProjects((prev) => [...prev, { ...created, stages }]);
         closeModal();
         toast('Timeline created.');
@@ -215,11 +297,12 @@ function AppShell() {
   const saveProjectField = useCallback(
     async (
       id: string,
-      field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'manager' | 'version',
+      field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version',
       value: string
     ) => {
       setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
       if (!isSupabaseConfigured) return;
+      if (field === 'version') return;
       try {
         await projectService.updateProject(id, { [field]: value });
         await new Promise((r) => setTimeout(r, 0));
@@ -233,45 +316,54 @@ function AppShell() {
 
   const saveStageField = useCallback(
     async (projectId: string, id: string, field: string, value: unknown) => {
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === projectId
-            ? { ...p, stages: p.stages.map((st) => (st.id === id ? { ...st, [field]: value } : st)) }
-            : p
-        )
-      );
+      const current = projects.find((p) => p.id === projectId);
+      if (!current) return;
+      const updated = {
+        ...current,
+        stages: current.stages.map((st) => (st.id === id ? { ...st, [field]: value } : st)),
+      };
+      // Recompute the resolved dates so the stage's start/end stay in sync with
+      // the edit (e.g. duration, dependency, offset). The timeline chart renders
+      // from these actual dates, so they must reflect the current stage data.
+      const synced = syncScheduleDates(updated, { satRule, holidays });
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? synced : p)));
       if (!isSupabaseConfigured) return;
       try {
-        await stageService.updateStage(id, { [field]: value } as Partial<Stage>);
+        const st = synced.stages.find((s) => s.id === id);
+        if (st) await stageService.updateStage(id, st);
       } catch (e) {
         console.error(e);
         toast('Could not save the stage.');
       }
     },
-    [toast]
+    [projects, satRule, holidays, toast]
   );
 
   const saveStageFixed = useCallback(
     async (projectId: string, id: string, val: string | null) => {
       const current = projects.find((x) => x.id === projectId);
+      if (!current) return;
       let fixedRef: string | null = null;
-      if (val && current) {
+      if (val) {
         const idx = current.stages.findIndex((st) => st.id === id);
         if (idx >= 0) {
           const S = schedule(current, { satRule, holidays });
           fixedRef = latestAboveEnd(S, idx);
         }
       }
+      const updated = {
+        ...current,
+        stages: current.stages.map((st) => (st.id === id ? { ...st, fixedStart: val, fixedRef } : st)),
+      };
+      // Recompute the resolved dates so the chart reflects the fixed start date.
+      const synced = syncScheduleDates(updated, { satRule, holidays });
       setProjects((prev) =>
-        prev.map((p) =>
-          p.id === projectId
-            ? { ...p, stages: p.stages.map((st) => (st.id === id ? { ...st, fixedStart: val, fixedRef } : st)) }
-            : p
-        )
+        prev.map((p) => (p.id === projectId ? synced : p))
       );
       if (!isSupabaseConfigured) return;
       try {
-        await stageService.updateStage(id, { fixedStart: val, fixedRef } as Partial<Stage>);
+        const st = synced.stages.find((s) => s.id === id);
+        if (st) await stageService.updateStage(id, st);
       } catch (e) {
         console.error(e);
         toast('Could not save the stage.');
@@ -281,60 +373,107 @@ function AppShell() {
   );
 
   const addStage = useCallback(
-    async (projectId: string) => {
+    async (projectId: string, input: StageInput) => {
       const p = projects.find((x) => x.id === projectId);
       if (!p) return;
+      const engine = { satRule, holidays };
       const order = p.stages.length;
+
+      // Resolve the real start & end using the same scheduling rules as the
+      // Gantt chart (fixed date / after / alongside). Dates are computed here,
+      // in one place, and shared with the form's live preview.
+      const { start, end } = scheduleAppendedStage(p, input, engine);
+
       const st: Stage = {
-        id: uid(),
+        // No id supplied => supabase generates the uuid on insert.
+        id: '',
         projectId,
-        name: 'New stage',
-        description: '',
-        durationDays: 5,
-        dependencyType: 'after',
+        name: input.name,
+        description: input.description,
+        durationDays: Math.max(1, Number(input.durationDays) || 1),
+        dependencyType: input.scheduleMode === 'with' ? 'with' : 'after',
         offsetDays: 2,
-        fixedStart: null,
+        fixedStart: input.scheduleMode === 'fixed' ? input.fixedStart : null,
         fixedRef: null,
-        startDate: null,
-        endDate: null,
+        startDate: start,
+        endDate: end,
         stageOrder: order,
       };
-      setProjects((prev) =>
-        prev.map((x) => (x.id === projectId ? { ...x, stages: [...x.stages, st] } : x))
-      );
-      if (!isSupabaseConfigured) return;
-      setBusy(true);
-      try {
-        await stageService.createStage(st);
-      } catch (e) {
-        console.error(e);
-        toast('Could not add the stage.');
-      } finally {
-        setBusy(false);
+
+      let created: Stage;
+      if (!isSupabaseConfigured) {
+        created = { ...st, id: uid() };
+      } else {
+        setBusy(true);
+        try {
+          created = await stageService.createStage(st);
+        } catch (e) {
+          console.error('Add stage failed:', e);
+          throw e;
+        } finally {
+          setBusy(false);
+        }
       }
+
+      const saved: Stage = { ...created, ...st, id: created.id };
+      setProjects((prev) =>
+        prev.map((x) => {
+          if (x.id !== projectId) return x;
+          const withStage = { ...x, stages: [...x.stages, saved] };
+          // Re-sync dates so the new stage (and any following stages) get their
+          // resolved start/end which the timeline chart renders from.
+          return syncScheduleDates(withStage, { satRule, holidays });
+        })
+      );
     },
-    [projects, toast]
+    [projects, satRule, holidays]
   );
 
   const deleteStage = useCallback(
     async (projectId: string, id: string) => {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+
+      const remaining = project.stages
+        .filter((s) => s.id !== id)
+        .map((s, i) => ({ ...s, stageOrder: i }));
+
+      // Re-sync dates so the chart drops the deleted stage and recomputes the
+      // span from the stages that remain.
+      const updated = syncScheduleDates({ ...project, stages: remaining }, { satRule, holidays });
+
+      // Optimistically update UI
       setProjects((prev) =>
         prev.map((p) =>
-          p.id === projectId ? { ...p, stages: p.stages.filter((s) => s.id !== id) } : p
+          p.id === projectId ? { ...p, stages: updated.stages } : p
         )
       );
+
       if (!isSupabaseConfigured) return;
+
       setBusy(true);
       try {
         await stageService.deleteStage(id);
+        // Persist updated stage_order values for remaining stages
+        try {
+          await stageService.updateStageOrders(remaining);
+        } catch (orderErr) {
+          console.error('Stage deleted but failed to update stage order:', orderErr);
+        }
       } catch (e) {
         console.error(e);
-        toast('Could not delete the stage.');
+        // Rollback: restore original stages
+        setProjects((prev) =>
+          prev.map((p) =>
+            p.id === projectId ? { ...p, stages: project.stages } : p
+          )
+        );
+        toast('Could not delete the stage. Please try again.');
       } finally {
         setBusy(false);
       }
     },
-    [toast]
+    [projects, satRule, holidays, toast]
   );
 
   const reorderStages = useCallback(
@@ -346,18 +485,23 @@ function AppShell() {
       const [moved] = current.splice(a, 1);
       current.splice(b, 0, moved);
       const reordered = current.map((st, i) => ({ ...st, stageOrder: i }));
+      const base = projects.find((p) => p.id === projectId);
+      if (!base) return;
+      // Reorder changes the dependency chain, so resync the resolved dates to
+      // keep the timeline chart in step with the new stage order.
+      const updated = syncScheduleDates({ ...base, stages: reordered }, { satRule, holidays });
       setProjects((prev) =>
-        prev.map((p) => (p.id === projectId ? { ...p, stages: reordered } : p))
+        prev.map((p) => (p.id === projectId ? updated : p))
       );
       if (!isSupabaseConfigured) return;
       try {
-        await stageService.updateStageOrders(reordered);
+        await stageService.updateStageOrders(updated.stages);
       } catch (e) {
         console.error(e);
         toast('Could not save the new stage order.');
       }
     },
-    [projects, toast]
+    [projects, satRule, holidays, toast]
   );
 
   const deleteProject = useCallback(
@@ -538,12 +682,12 @@ interface ProjectDetailProps {
   satRule: boolean;
   saveProjectField: (
     id: string,
-    field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'manager' | 'version',
+    field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version',
     value: string
   ) => void;
   saveStageField: (projectId: string, id: string, field: string, value: unknown) => void;
   saveStageFixed: (projectId: string, id: string, val: string | null) => void;
-  addStage: (projectId: string) => void;
+  addStage: (projectId: string, input: StageInput) => Promise<void>;
   deleteStage: (projectId: string, id: string) => void;
   reorderStages: (projectId: string, fromId: string, toId: string) => void;
   deleteProject: (id: string) => void | Promise<void>;
@@ -587,8 +731,8 @@ function ProjectDetail({
       satRule={satRule}
       onSaveProjectField={(field, value) => saveProjectField(project.id, field, value)}
       onStageField={(sid, field, value) => saveStageField(project.id, sid, field, value)}
-      onStageFixed={(sid, val) => saveStageFixed(project.id, sid, val)}
-      onAddStage={() => addStage(project.id)}
+      onStageFixed={(sid, val, _currentStart) => saveStageFixed(project.id, sid, val)}
+      onAddStage={(values) => addStage(project.id, values)}
       onDeleteStage={(sid) => deleteStage(project.id, sid)}
       onReorder={(fromId, toId) => reorderStages(project.id, fromId, toId)}
       onDeleteProject={() => {
@@ -606,6 +750,7 @@ function ProjectDetail({
 }
 
 export default function App() {
+  console.log("Supabase client:", supabase);
   return (
     <BrowserRouter>
       <ModalProvider>

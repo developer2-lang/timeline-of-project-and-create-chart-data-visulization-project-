@@ -180,12 +180,12 @@ export function StageRow({
         )}
       </div>
       <button
-        className="btn ghost sm x"
+        className="btn ghost sm delete-btn"
         onClick={() => onDelete(stage.id)}
-        title="Remove this stage"
-        aria-label={`Remove ${stage.name || 'stage'}`}
+        title="Delete stage"
+        aria-label={`Delete ${stage.name || 'stage'}`}
       >
-        <X size={14} />
+        <X size={14} /> Delete
       </button>
     </div>
   );

@@ -7,11 +7,77 @@ import type {
   ScheduleResult,
   SpanResult,
   Stage,
+  StageInput,
 } from '../types/timeline';
 
 export interface Engine {
   satRule: boolean;
   holidays: Holiday[];
+}
+
+/**
+ * Calculate the end date for a stage that starts on `startDate` and lasts
+ * `durationDays` working days. Working days exclude Sundays, Saturdays that
+ * fall on the 2nd/4th of a month (when satRule is on) and public holidays.
+ *
+ * This is the single, centralized place stages turn a start date + working
+ * duration into an end date. It reuses the same working-day engine that the
+ * interactive schedule uses, so the form preview and the Gantt chart can never
+ * disagree.
+ */
+export function calculateStageEndDate(
+  startDate: string | null | undefined,
+  durationDays: number,
+  engine: Engine
+): string {
+  const start = nextWork(pd(startDate), engine.satRule, engine.holidays);
+  const end = plusWork(
+    start,
+    Math.max(1, Number(durationDays) || 1) - 1,
+    engine.satRule,
+    engine.holidays
+  );
+  return iso(end);
+}
+
+/**
+ * Compute the resolved start and end dates for a brand-new stage appended to
+ * `project`, using exactly the same scheduling rules as the interactive
+ * schedule and the Gantt chart. This is the single place Add Stage (both the
+ * live form preview and the actual save) derives dates, so they can never
+ * drift apart.
+ *
+ *   fixed => the stage starts on the chosen working day (fixedStart)
+ *   with  => starts on the same day as the stage above it
+ *   after => starts the next working day after the latest of the stages above
+ */
+export function scheduleAppendedStage(
+  project: ProjectTimeline,
+  input: StageInput,
+  engine: Engine
+): { start: string; end: string } {
+  const order = project.stages.length;
+  const tempId = `__new__${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const temp: Stage = {
+    id: tempId,
+    projectId: project.id,
+    name: input.name,
+    description: input.description,
+    durationDays: input.durationDays,
+    dependencyType: input.scheduleMode === 'with' ? 'with' : 'after',
+    offsetDays: 2,
+    fixedStart: input.scheduleMode === 'fixed' ? input.fixedStart : null,
+    fixedRef: null,
+    startDate: null,
+    endDate: null,
+    stageOrder: order,
+  };
+  const S = schedule({ ...project, stages: [...project.stages, temp] }, engine);
+  const fallbackStart = nextWork(pd(project.startDate), engine.satRule, engine.holidays);
+  const r = S.find((x) => x.stageId === tempId) as ScheduleResult | undefined;
+  const start = r ? r.start : iso(fallbackStart);
+  const end = r ? r.end : calculateStageEndDate(start, input.durationDays, engine);
+  return { start, end };
 }
 
 /**
@@ -153,13 +219,34 @@ export function weekLabel(
   return a === b ? 'Week ' + a : 'Week ' + a + ' – ' + b;
 }
 
+/**
+ * Return a copy of `p` where every stage has its resolved `startDate` and
+ * `endDate` filled from the schedule engine. The stages are the single source
+ * of truth for the timeline, and their `startDate`/`endDate` are the actual
+ * dates the Gantt chart renders. Keeping them in sync here means the chart
+ * always reflects the current stage list (add / delete / edit / reorder)
+ * without ever inventing its own rows.
+ */
+export function syncScheduleDates(p: ProjectTimeline, engine: Engine): ProjectTimeline {
+  const S = schedule(p, engine);
+  const map: Record<string, { start: string; end: string }> = {};
+  S.forEach((r) => (map[r.stageId] = r));
+  return {
+    ...p,
+    stages: p.stages.map((st) => {
+      const r = map[st.id];
+      return r ? { ...st, startDate: r.start, endDate: r.end } : st;
+    }),
+  };
+}
+
 export function newStageData(projectId: string, order: number, partial?: Partial<Stage>): Stage {
   return {
     id: partial?.id || `${projectId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     projectId,
     name: partial?.name || 'New stage',
     description: partial?.description || '',
-    durationDays: partial?.durationDays ?? 5,
+    durationDays: Math.max(1, Number(partial?.durationDays) || 1),
     dependencyType: partial?.dependencyType || 'after',
     offsetDays: partial?.offsetDays ?? 2,
     fixedStart: partial?.fixedStart ?? null,

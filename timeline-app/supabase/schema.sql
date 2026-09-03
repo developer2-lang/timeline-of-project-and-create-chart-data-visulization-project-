@@ -12,7 +12,7 @@ create table if not exists public.projects (
   client_name text not null default '',
   project_code text not null default '',
   start_date date not null,
-  manager text not null default '',
+  prepared_by text not null default '',
   version text not null default 'R0',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -22,7 +22,7 @@ create table if not exists public.projects (
 create table if not exists public.stages (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects (id) on delete cascade,
-  name text not null default 'New stage',
+  stage_name text not null default 'New stage',
   description text not null default '',
   duration_days integer not null default 5,
   dependency_type text not null default 'after',   -- after | with | into

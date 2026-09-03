@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Holiday, ProjectTimeline } from '../types/timeline';
-import { add, diff, fmt, fmtS, iso, pd } from '../utils/dateUtils';
-import { holidayMatch } from '../utils/workingDays';
-import { schedule, span, weekLabel } from '../utils/timelineCalculations';
+import { add, diff, fmt, fmtS, iso, monday, pd, today } from '../utils/dateUtils';
+import { holidayMatch, offDay } from '../utils/workingDays';
+import { schedule, span } from '../utils/timelineCalculations';
 
-const W = 66;
+const DAY_W = 9;
 
 interface GanttChartProps {
   project: ProjectTimeline;
@@ -12,71 +12,157 @@ interface GanttChartProps {
   holidays: Holiday[];
 }
 
+interface RowDate {
+  id: string;
+  name: string;
+  durationDays: number;
+  start: string;
+  end: string;
+  dependencyType: string;
+}
+
 export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   const engine = useMemo(() => ({ satRule, holidays }), [satRule, holidays]);
-  const S = useMemo(() => schedule(project, engine), [project, engine]);
-  const s = useMemo(() => span(project, engine), [project, engine]);
 
-  const map = useMemo(() => {
+  const S = useMemo(() => schedule(project, engine), [project, engine]);
+  const schMap = useMemo(() => {
     const m: Record<string, { start: string; end: string }> = {};
     S.forEach((r) => (m[r.stageId] = r));
     return m;
   }, [S]);
 
-  const n = Math.max(s.weeks, 1);
-  const total = n * W;
-  const pos = (d: string) => (diff(s.w0, pd(d) as Date) / 7) * W;
+  const rows = useMemo<RowDate[]>(() => {
+    return project.stages
+      .map((st) => {
+        const r = schMap[st.id];
+        return {
+          id: st.id,
+          name: st.name,
+          durationDays: st.durationDays,
+          start: st.startDate || (r ? r.start : ''),
+          end: st.endDate || (r ? r.end : ''),
+          dependencyType: st.dependencyType,
+        };
+      })
+      .filter((d) => d.start && d.end);
+  }, [project.stages, schMap]);
 
-  const head = Array.from({ length: n }, (_, i) => {
-    const m0 = add(s.w0, i * 7);
-    let hol = '';
-    for (let k = 0; k < 7; k++) {
-      const h = holidayMatch(add(m0, k), holidays);
-      if (h) {
-        hol = h.holidayName.split('—')[0].trim();
-        break;
-      }
+  const s = useMemo(() => {
+    if (!rows.length) return span(project, engine);
+    let first: Date | null = null;
+    let last: Date | null = null;
+    for (const d of rows) {
+      const a = pd(d.start) as Date;
+      const b = pd(d.end) as Date;
+      if (!first || a < first) first = a;
+      if (!last || b > last) last = b;
     }
-    return (
-      <div className="wk-head" key={i}>
-        <div className="w">W{i + 1}</div>
-        <div className="d">{fmtS(iso(m0))}</div>
-        {hol ? (
-          <div className="h" title={hol}>
-            {hol}
-          </div>
-        ) : (
-          <div className="h">&nbsp;</div>
-        )}
-      </div>
-    );
-  });
+    if (!first || !last) return span(project, engine);
+    const w0 = monday(first);
+    return {
+      start: first,
+      end: last,
+      w0,
+      weeks: Math.max(1, Math.ceil((diff(w0, last) + 1) / 7)),
+    };
+  }, [rows, project, engine]);
 
-  const cells = Array.from({ length: n }, (_, i) => <div className="tl-cell" key={i} />);
+  const n = Math.max(s.weeks, 1);
+  const total = n * 7 * DAY_W;
+  const startDay = diff(s.w0, today());
+  const dayPos = (dateStr: string) => diff(s.w0, pd(dateStr) as Date) * DAY_W;
 
-  const rows = project.stages.map((st) => {
-    const r = map[st.id];
-    if (!r) return null;
-    const x = pos(r.start);
-    const w = Math.max(pos(r.end) + W / 7 - x, 26);
-    const label = weekLabel(project, engine, r);
+  const weekRanges = useMemo(() => {
+    return Array.from({ length: n }, (_, i) => {
+      const m0 = add(s.w0, i * 7);
+      const sun = add(m0, 6);
+      let hol = '';
+      for (let k = 0; k < 7; k++) {
+        const h = holidayMatch(add(m0, k), holidays);
+        if (h) {
+          hol = h.holidayName.split('—')[0].trim();
+          break;
+        }
+      }
+      return { m0, sun, hol };
+    });
+  }, [s, n, holidays]);
+
+  const [hoveredBar, setHoveredBar] = useState<string | null>(null);
+
+  const rowsEl = rows.map((d) => {
+    const x = dayPos(d.start);
+    const barDays = Math.max(1, diff(pd(d.start) as Date, pd(d.end) as Date) + 1);
+    const w = barDays * DAY_W;
+    const showLabel = w > 40;
+
     return (
-      <div className="tl-row" key={st.id}>
+      <div className="tl-row" key={d.id}>
         <div className="tl-lab">
-          <div className="n">{st.name}</div>
+          <div className="n">{d.name}</div>
           <div className="d">
-            {fmtS(r.start)} → {fmtS(r.end)} · {st.durationDays} wd
+            {fmtS(d.start)} → {fmtS(d.end)} · {d.durationDays}d
           </div>
         </div>
-        <div className="tl-track" style={{ width: total, minWidth: total, height: 44 }}>
-          {cells}
+        <div className="tl-track" style={{ width: total, minWidth: total, height: 52 }}>
+          <div className="tl-grid-bg">
+            {Array.from({ length: n * 7 }, (_, di) => {
+              const cellDate = add(s.w0, di);
+              if (offDay(cellDate, satRule, holidays)) {
+                return (
+                  <div
+                    key={di}
+                    className="tl-nonwork-bg"
+                    style={{ left: di * DAY_W, width: DAY_W }}
+                  />
+                );
+              }
+              return null;
+            })}
+          </div>
+          {Array.from({ length: n }, (_, i) => (
+            <div className="tl-cell" key={i} />
+          ))}
+          {startDay >= 0 && startDay <= n * 7 && (
+            <div
+              className="tl-today-line"
+              style={{ left: startDay * DAY_W }}
+            />
+          )}
           <div
             className="tl-bar"
             style={{ left: x, width: w }}
-            title={`${fmt(r.start)} → ${fmt(r.end)}`}
+            title={`${d.name}\n${fmt(d.start)} → ${fmt(d.end)}\n${d.durationDays} working days\nDependency: ${d.dependencyType === 'after' ? 'After the stages above it' : d.dependencyType === 'with' ? 'Alongside the stage above' : 'Overlapping the stage above'}`}
+            onMouseEnter={() => setHoveredBar(d.id)}
+            onMouseLeave={() => setHoveredBar(null)}
           >
-            {w > 92 ? label : ''}
+            {showLabel && <span className="tl-bar-label">{d.durationDays}d</span>}
           </div>
+          {hoveredBar === d.id && (
+            <div
+              className="tl-tooltip"
+              style={{ left: Math.min(x, total - 200) }}
+            >
+              <div className="tl-tooltip-title">{d.name}</div>
+              <div className="tl-tooltip-row">
+                <span>Start:</span> {fmt(d.start)}
+              </div>
+              <div className="tl-tooltip-row">
+                <span>End:</span> {fmt(d.end)}
+              </div>
+              <div className="tl-tooltip-row">
+                <span>Duration:</span> {d.durationDays} working days
+              </div>
+              <div className="tl-tooltip-row">
+                <span>Dependency:</span>{' '}
+                {d.dependencyType === 'after'
+                  ? 'After the stages above it'
+                  : d.dependencyType === 'with'
+                    ? 'Alongside the stage above'
+                    : 'Overlapping the stage above'}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -86,25 +172,39 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
     <div className="tl-wrap">
       <div className="tl">
         <div className="tl-row tl-head">
-          <div className="tl-lab">
+          <div className="tl-lab" style={{ width: 320, minWidth: 320 }}>
             <span>Stage</span>
           </div>
           <div className="tl-track" style={{ width: total, minWidth: total }}>
-            {head}
+            {weekRanges.map((wr, i) => (
+              <div className="wk-head" key={i}>
+                <div className="w">W{i + 1}</div>
+                <div className="d">
+                  {fmtS(iso(wr.m0))} – {fmtS(iso(wr.sun))}
+                </div>
+                {wr.hol ? (
+                  <div className="h" title={wr.hol}>
+                    {wr.hol}
+                  </div>
+                ) : (
+                  <div className="h">&nbsp;</div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
-        {rows.length ? (
-          rows
+        {rowsEl.length ? (
+          rowsEl
         ) : (
           <div className="tl-row">
             <div style={{ padding: 26 }} className="muted">
-              Add a stage to draw the timeline.
+              No stages added yet.
             </div>
           </div>
         )}
         <div className="tl-foot">
-          Each column is one week, dated from its Monday. Durations count working days only —
-          Sundays, the 2nd and 4th Saturday, and public holidays are already excluded.
+          Durations count working days only — Sundays, the 2nd and 4th Saturday, and
+          public holidays are excluded.
         </div>
       </div>
     </div>

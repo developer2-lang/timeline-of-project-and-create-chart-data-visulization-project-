@@ -4,6 +4,7 @@ import { Plus, Download, Mail, Trash2, ChevronLeft } from 'lucide-react';
 import { StageList } from '../components/StageList';
 import { GanttChart } from '../components/GanttChart';
 import { useModal } from '../components/ModalContext';
+import { AddStageForm, type AddStageFormValues } from '../components/AddStageForm';
 import useToast from '../components/useToast';
 import type { Holiday, ProjectTimeline } from '../types/timeline';
 import { schedule, span } from '../utils/timelineCalculations';
@@ -13,10 +14,10 @@ interface TimelineEditorProps {
   project: ProjectTimeline;
   holidays: Holiday[];
   satRule: boolean;
-  onSaveProjectField: (field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'manager' | 'version', value: string) => void;
+  onSaveProjectField: (field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version', value: string) => void;
   onStageField: (id: string, field: string, value: unknown) => void;
   onStageFixed: (id: string, val: string | null, currentStart: string) => void;
-  onAddStage: () => void;
+  onAddStage: (values: AddStageFormValues) => Promise<void>;
   onDeleteStage: (id: string) => void;
   onReorder: (fromId: string, toId: string) => void;
   onDeleteProject: () => void;
@@ -36,11 +37,19 @@ export function TimelineEditor({
   onDeleteProject,
   onSaveTemplate,
 }: TimelineEditorProps) {
-  const { confirmBox } = useModal();
+  const { confirmBox, openModal } = useModal();
   const toast = useToast();
 
   const engine = useMemo(() => ({ satRule, holidays }), [satRule, holidays]);
   const s = useMemo(() => span(project, engine), [project, engine]);
+
+  const handleDeleteStage = (stageId: string) => {
+    openModal(
+      'Delete this stage?',
+      <div className="muted">This stage will be permanently removed from this project.</div>,
+      [{ label: 'Delete', cls: 'btn primary', act: () => onDeleteStage(stageId) }]
+    );
+  };
 
   const handleDeleteProject = () => {
     confirmBox(
@@ -148,8 +157,8 @@ export function TimelineEditor({
         <div className="field">
           <label>Prepared by</label>
           <input
-            value={project.manager}
-            onChange={(e) => onSaveProjectField('manager', e.target.value)}
+            value={project.preparedBy}
+            onChange={(e) => onSaveProjectField('preparedBy', e.target.value)}
             placeholder="Design manager"
           />
         </div>
@@ -174,7 +183,21 @@ export function TimelineEditor({
         <div className="sec-head">
           <h2>Stages</h2>
           <div style={{ display: 'flex', gap: 9 }}>
-            <button className="btn sm" onClick={onAddStage}>
+            <button
+              className="btn sm"
+              onClick={() =>
+                openModal(
+                  'Add a stage',
+                  <AddStageForm
+                    project={project}
+                    satRule={satRule}
+                    holidays={holidays}
+                    onSubmit={onAddStage}
+                  />,
+                  []
+                )
+              }
+            >
               <Plus size={14} /> Add stage
             </button>
             <button className="btn sm" onClick={onSaveTemplate}>
@@ -193,7 +216,7 @@ export function TimelineEditor({
             onRule={(id, rule) => onStageField(id, 'dependencyType', rule)}
             onOffset={(id, offset) => onStageField(id, 'offsetDays', offset)}
             onFixed={onStageFixed}
-            onDelete={onDeleteStage}
+            onDelete={handleDeleteStage}
             onReorder={onReorder}
           />
         </div>

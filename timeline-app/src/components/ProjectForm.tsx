@@ -8,7 +8,7 @@ export interface NewProjectValues {
   clientName: string;
   projectCode: string;
   startDate: string;
-  manager: string;
+  preparedBy: string;
   version: string;
   templateId: string;
 }
@@ -24,7 +24,7 @@ export function ProjectForm({ onSubmit }: ProjectFormProps) {
   const [clientName, setClientName] = useState('');
   const [projectCode, setProjectCode] = useState('');
   const [startDate, setStartDate] = useState('');
-  const [manager, setManager] = useState('');
+  const [preparedBy, setPreparedBy] = useState('');
   const [templateId, setTemplateId] = useState(START_TEMPLATES[2].id);
 
   const submit = () => {
@@ -41,7 +41,7 @@ export function ProjectForm({ onSubmit }: ProjectFormProps) {
       clientName: clientName.trim(),
       projectCode: projectCode.trim(),
       startDate,
-      manager: manager.trim(),
+      preparedBy: preparedBy.trim(),
       version: 'R0',
       templateId,
     });
@@ -90,8 +90,8 @@ export function ProjectForm({ onSubmit }: ProjectFormProps) {
         <label htmlFor="np-manager">Prepared by</label>
         <input
           id="np-manager"
-          value={manager}
-          onChange={(e) => setManager(e.target.value)}
+          value={preparedBy}
+          onChange={(e) => setPreparedBy(e.target.value)}
           placeholder="Design manager"
         />
       </div>

@@ -77,12 +77,60 @@ function wdBack(n: number, satRule: boolean, holidays: Holiday[]): Date {
   return x;
 }
 
+export interface SupabaseDemoStage {
+  name: string;
+  description: string;
+  durationDays: number;
+  stageOrder: number;
+}
+
+export interface SupabaseDemoProject {
+  projectName: string;
+  clientName: string;
+  projectCode: string;
+  startDate: string;
+  preparedBy: string;
+  version: string;
+  stages: SupabaseDemoStage[];
+}
+
+export const SUPERBASE_DEMO_PROJECTS: SupabaseDemoProject[] = [
+  {
+    projectName: 'Website Redesign',
+    clientName: 'ABC Company',
+    projectCode: 'WEB-001',
+    startDate: '2026-09-01',
+    preparedBy: 'Admin',
+    version: 'R0',
+    stages: [
+      { name: 'Planning', description: 'Project planning and requirements', durationDays: 10, stageOrder: 0 },
+      { name: 'UI Design', description: 'Design website screens', durationDays: 15, stageOrder: 1 },
+      { name: 'Development', description: 'Develop the website', durationDays: 25, stageOrder: 2 },
+      { name: 'Testing', description: 'Test the completed website', durationDays: 10, stageOrder: 3 },
+    ],
+  },
+  {
+    projectName: 'Mobile App Development',
+    clientName: 'XYZ Company',
+    projectCode: 'APP-001',
+    startDate: '2026-09-15',
+    preparedBy: 'Admin',
+    version: 'R0',
+    stages: [
+      { name: 'Requirements', description: 'Gather and document requirements', durationDays: 10, stageOrder: 0 },
+      { name: 'UI/UX Design', description: 'Design user interface and experience', durationDays: 15, stageOrder: 1 },
+      { name: 'Development', description: 'Build the mobile application', durationDays: 30, stageOrder: 2 },
+      { name: 'Testing', description: 'Test the application', durationDays: 10, stageOrder: 3 },
+    ],
+  },
+];
+
 export interface DemoProjectInput {
   projectName: string;
   clientName: string;
   projectCode: string;
   startDate: string;
-  manager: string;
+  preparedBy: string;
   version: string;
   stages: DemoStageSpec[];
 }
@@ -100,7 +148,7 @@ export function buildDemoProjects(satRule: boolean, holidays: Holiday[]): DemoPr
     projectName: 'AIS Window Handle Family',
     clientName: 'AIS Glass Solutions',
     projectCode: 'IUV-2026-038',
-    manager: 'Waseed Saad',
+    preparedBy: 'Waseed Saad',
     version: 'R0',
     startDate: iso(nextWork(add(today(), 3), satRule, holidays)),
     stages: [
@@ -117,7 +165,7 @@ export function buildDemoProjects(satRule: boolean, holidays: Holiday[]): DemoPr
     projectName: 'Havells Mixer Grinder — Jar & Base',
     clientName: 'Havells India',
     projectCode: 'IUV-2026-047',
-    manager: 'Anirudha Masurkar',
+    preparedBy: 'Anirudha Masurkar',
     version: 'R1',
     startDate: iso(wdBack(8, satRule, holidays)),
     stages: [
@@ -135,7 +183,7 @@ export function buildDemoProjects(satRule: boolean, holidays: Holiday[]): DemoPr
     projectName: 'ABS Ceiling Fan — Canopy & Blade',
     clientName: 'Bajaj Electricals',
     projectCode: 'IUV-2026-041',
-    manager: 'Anirudha Masurkar',
+    preparedBy: 'Anirudha Masurkar',
     version: 'R2',
     startDate: iso(wdBack(4, satRule, holidays)),
     stages: [
@@ -154,7 +202,7 @@ export function buildDemoProjects(satRule: boolean, holidays: Holiday[]): DemoPr
     projectName: 'Steelbird Helmet — Shell & Visor',
     clientName: 'Steelbird Hi-Tech',
     projectCode: 'IUV-2026-044',
-    manager: 'Mandar Ambelkar',
+    preparedBy: 'Mandar Ambelkar',
     version: 'R1',
     startDate: iso(nextWork(add(today(), 10), satRule, holidays)),
     stages: [

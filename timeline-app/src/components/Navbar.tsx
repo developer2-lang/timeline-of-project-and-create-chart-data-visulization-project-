@@ -17,17 +17,18 @@ export function Navbar({ onDemoData, onReload, onClear, busy }: NavbarProps) {
   const { confirmBox } = useModal();
 
   const handleReload = () => {
-    if (!isSupabaseConfigured) {
-      toast('Supabase is not configured yet — no data to reload. Set your env variables.');
-      return;
-    }
     onReload();
+    if (!isSupabaseConfigured) {
+      toast('Reloaded from local data.');
+    }
   };
 
   const handleClear = () => {
     confirmBox(
       'Clear everything',
-      'This removes all timelines, their stages, and your custom holidays from Supabase, leaving an empty app for real work. This cannot be undone.',
+      isSupabaseConfigured
+        ? 'This removes all timelines, their stages, and your custom holidays from Supabase, leaving an empty app for real work. This cannot be undone.'
+        : 'This removes all timelines and resets to default holidays. This cannot be undone.',
       () => onClear()
     );
   };

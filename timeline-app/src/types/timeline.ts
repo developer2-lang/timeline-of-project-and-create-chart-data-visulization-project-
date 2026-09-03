@@ -1,5 +1,17 @@
 export type DependencyType = 'after' | 'with' | 'into';
 
+/** How a new stage is scheduled when created through the Add Stage form. */
+export type ScheduleMode = 'fixed' | 'after' | 'with';
+
+/** Raw values collected by the Add Stage form, before any dates are computed. */
+export interface StageInput {
+  name: string;
+  description: string;
+  durationDays: number;
+  scheduleMode: ScheduleMode;
+  fixedStart: string;
+}
+
 export interface Stage {
   id: string;
   projectId: string;
@@ -23,7 +35,7 @@ export interface ProjectTimeline {
   clientName: string;
   projectCode: string;
   startDate: string;
-  manager: string;
+  preparedBy: string;
   version: string;
   createdAt?: string;
   updatedAt?: string;

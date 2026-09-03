@@ -14,7 +14,10 @@ export async function fetchHolidays(): Promise<Holiday[]> {
     .from('holidays')
     .select('*')
     .order('holiday_date', { ascending: true });
-  if (error) throw error;
+  if (error) {
+    console.warn('Holidays query failed (table may not exist yet):', error.message);
+    return [];
+  }
   return (data || []).map(toHoliday);
 }
 
