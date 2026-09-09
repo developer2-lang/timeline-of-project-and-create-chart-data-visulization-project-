@@ -506,6 +506,7 @@ function AppShell() {
 
   const deleteProject = useCallback(
     async (id: string) => {
+      const target = projects.find((p) => p.id === id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
       if (!isSupabaseConfigured) return;
       setBusy(true);
@@ -513,12 +514,15 @@ function AppShell() {
         await projectService.deleteProject(id);
       } catch (e) {
         console.error(e);
+        if (target) {
+          setProjects((prev) => (prev.some((p) => p.id === id) ? prev : [...prev, target]));
+        }
         toast('Could not delete the timeline.');
       } finally {
         setBusy(false);
       }
     },
-    [toast]
+    [projects, toast]
   );
 
   const addHoliday = useCallback(
@@ -626,7 +630,13 @@ function AppShell() {
             <Route
               path="/"
               element={
-                <Timelines projects={projects} holidays={holidays} satRule={satRule} onCreate={createProject} />
+                <Timelines
+                  projects={projects}
+                  holidays={holidays}
+                  satRule={satRule}
+                  onCreate={createProject}
+                  onDeleteProject={deleteProject}
+                />
               }
             />
             <Route

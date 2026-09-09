@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import type { DependencyType, Notice, Stage } from '../types/timeline';
 import { fmt } from '../utils/dateUtils';
-import { GripVertical, X } from 'lucide-react';
+import { GripVertical, X, Pencil, Check } from 'lucide-react';
 
 export const RULES: { value: DependencyType; label: string }[] = [
   { value: 'after', label: 'After the stages above it' },
@@ -50,6 +51,7 @@ export function StageRow({
   dragged,
   dropTarget,
 }: StageRowProps) {
+  const [editing, setEditing] = useState(false);
   const cls = ['stage', dragged ? 'dragging' : '', dropTarget ? 'drop' : ''].join(' ').trim();
 
   return (
@@ -75,21 +77,34 @@ export function StageRow({
         <GripVertical size={18} />
       </span>
       <div className="main">
-        <input
-          className="s-name"
-          value={stage.name}
-          onChange={(e) => onName(stage.id, e.target.value)}
-          placeholder="Stage name"
-          aria-label="Stage name"
-        />
-        <input
-          className="s-desc"
-          value={stage.description ?? ''}
-          onChange={(e) => onDesc(stage.id, e.target.value)}
-          placeholder="What happens in this stage — one line the client will read"
-          aria-label="Stage description"
-        />
+        {editing ? (
+          <>
+            <input
+              className="s-name"
+              value={stage.name}
+              onChange={(e) => onName(stage.id, e.target.value)}
+              placeholder="Stage name"
+              aria-label="Stage name"
+            />
+            <input
+              className="s-desc"
+              value={stage.description ?? ''}
+              onChange={(e) => onDesc(stage.id, e.target.value)}
+              placeholder="What happens in this stage — one line the client will read"
+              aria-label="Stage description"
+            />
+          </>
+        ) : (
+          <>
+            <div className="s-name ro">{stage.name || 'Untitled stage'}</div>
+            {stage.description ? <div className="s-desc ro">{stage.description}</div> : null}
+          </>
+        )}
         <div className="s-when">
+          {editing ? null : (
+            <span className="wk">{stage.durationDays} working days</span>
+          )}
+          {editing ? null : <span className="sep">·</span>}
           <span className="wk">{view.weekLabel}</span>
           <span className="sep">·</span>
           <span className="mono">
@@ -108,85 +123,108 @@ export function StageRow({
           </div>
         ))}
       </div>
-      <div className="s-ctl">
-        <div className="line">
-          <input
-            type="number"
-            min={1}
-            value={stage.durationDays}
-            onChange={(e) => onDays(stage.id, Math.max(1, Number(e.target.value) || 1))}
-            aria-label="Duration in working days"
-          />{' '}
-          working days
-        </div>
-        {stage.fixedStart ? (
-          <>
-            <div className="line">
-              <input
-                type="date"
-                value={stage.fixedStart}
-                onChange={(e) => onFixed(stage.id, e.target.value, view.start)}
-                style={{ flex: 1 }}
-                aria-label="Fixed start date"
-              />
-            </div>
-            <div className="line" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn ghost sm lnk" onClick={() => onFixed(stage.id, null, view.start)}>
-                Back to automatic
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {isFirst ? (
-              <div className="line muted" style={{ fontSize: '12.5px' }}>
-                Begins on the project start date
+      {editing ? (
+        <div className="s-ctl">
+          <div className="line">
+            <input
+              type="number"
+              min={1}
+              value={stage.durationDays}
+              onChange={(e) => onDays(stage.id, Math.max(1, Number(e.target.value) || 1))}
+              aria-label="Duration in working days"
+            />{' '}
+            working days
+          </div>
+          {stage.fixedStart ? (
+            <>
+              <div className="line">
+                <input
+                  type="date"
+                  value={stage.fixedStart}
+                  onChange={(e) => onFixed(stage.id, e.target.value, view.start)}
+                  style={{ flex: 1 }}
+                  aria-label="Fixed start date"
+                />
               </div>
-            ) : (
-              <>
-                <div className="line">
-                  <select
-                    value={stage.dependencyType}
-                    onChange={(e) => onRule(stage.id, e.target.value as DependencyType)}
-                    aria-label="Dependency"
-                  >
-                    {RULES.map((r) => (
-                      <option key={r.value} value={r.value}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </select>
+              <div className="line" style={{ justifyContent: 'flex-end' }}>
+                <button className="btn ghost sm lnk" onClick={() => onFixed(stage.id, null, view.start)}>
+                  Back to automatic
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {isFirst ? (
+                <div className="line muted" style={{ fontSize: '12.5px' }}>
+                  Begins on the project start date
                 </div>
-                {stage.dependencyType === 'into' ? (
+              ) : (
+                <>
                   <div className="line">
-                    <input
-                      type="number"
-                      min={0}
-                      value={stage.offsetDays}
-                      onChange={(e) => onOffset(stage.id, Math.max(0, Number(e.target.value) || 0))}
-                      aria-label="Offset days in"
-                    />{' '}
-                    days in
+                    <select
+                      value={stage.dependencyType}
+                      onChange={(e) => onRule(stage.id, e.target.value as DependencyType)}
+                      aria-label="Dependency"
+                    >
+                      {RULES.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ) : null}
-              </>
-            )}
-            <div className="line" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn ghost sm lnk" onClick={() => onFixed(stage.id, view.start, view.start)}>
-                Pick a start date
-              </button>
-            </div>
-          </>
+                  {stage.dependencyType === 'into' ? (
+                    <div className="line">
+                      <input
+                        type="number"
+                        min={0}
+                        value={stage.offsetDays}
+                        onChange={(e) => onOffset(stage.id, Math.max(0, Number(e.target.value) || 0))}
+                        aria-label="Offset days in"
+                      />{' '}
+                      days in
+                    </div>
+                  ) : null}
+                </>
+              )}
+              <div className="line" style={{ justifyContent: 'flex-end' }}>
+                <button className="btn ghost sm lnk" onClick={() => onFixed(stage.id, view.start, view.start)}>
+                  Pick a start date
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+      <div className="stage-actions">
+        {editing ? (
+          <button
+            className="btn ghost sm done-btn"
+            onClick={() => setEditing(false)}
+            title="Done editing"
+            aria-label={`Done editing ${stage.name || 'stage'}`}
+          >
+            <Check size={14} /> Done
+          </button>
+        ) : (
+          <button
+            className="btn ghost sm edit-btn"
+            onClick={() => setEditing(true)}
+            title="Edit stage"
+            aria-label={`Edit ${stage.name || 'stage'}`}
+          >
+            <Pencil size={14} /> Edit
+          </button>
         )}
+        <button
+          className="btn ghost sm delete-btn"
+          onClick={() => onDelete(stage.id)}
+          title="Delete stage"
+          aria-label={`Delete ${stage.name || 'stage'}`}
+        >
+          <X size={14} /> Delete
+        </button>
       </div>
-      <button
-        className="btn ghost sm delete-btn"
-        onClick={() => onDelete(stage.id)}
-        title="Delete stage"
-        aria-label={`Delete ${stage.name || 'stage'}`}
-      >
-        <X size={14} /> Delete
-      </button>
     </div>
   );
 }

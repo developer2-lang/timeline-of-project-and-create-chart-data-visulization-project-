@@ -10,11 +10,12 @@ interface TimelinesProps {
   holidays: Holiday[];
   satRule: boolean;
   onCreate: (values: NewProjectValues) => Promise<string | void>;
+  onDeleteProject: (id: string) => void | Promise<void>;
 }
 
-export function Timelines({ projects, holidays, satRule, onCreate }: TimelinesProps) {
+export function Timelines({ projects, holidays, satRule, onCreate, onDeleteProject }: TimelinesProps) {
   const navigate = useNavigate();
-  const { openModal } = useModal();
+  const { openModal, confirmBox } = useModal();
   const toast = useToast();
 
   const handleNew = () => {
@@ -35,6 +36,17 @@ export function Timelines({ projects, holidays, satRule, onCreate }: TimelinesPr
 
   const openProject = (id: string) => navigate(`/project/${id}`);
 
+  const handleDelete = (id: string) => {
+    const project = projects.find((p) => p.id === id);
+    confirmBox(
+      'Delete this timeline?',
+      `${project?.projectName || 'This timeline'} and all its stages will be removed. This cannot be undone.`,
+      () => {
+        onDeleteProject(id);
+      }
+    );
+  };
+
   return (
     <TimelineList
       projects={projects}
@@ -43,6 +55,7 @@ export function Timelines({ projects, holidays, satRule, onCreate }: TimelinesPr
       empty={projects.length === 0}
       onNew={handleNew}
       onOpen={openProject}
+      onDelete={handleDelete}
     />
   );
 }

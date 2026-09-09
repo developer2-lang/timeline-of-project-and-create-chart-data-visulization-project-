@@ -49,7 +49,7 @@ export function calculateStageEndDate(
  *
  *   fixed => the stage starts on the chosen working day (fixedStart)
  *   with  => starts on the same day as the stage above it
- *   after => starts the next working day after the latest of the stages above
+ *   after => starts exactly one calendar day after the latest of the stages above
  */
 export function scheduleAppendedStage(
   project: ProjectTimeline,
@@ -83,7 +83,7 @@ export function scheduleAppendedStage(
 /**
  * The schedule engine from timeline.html.
  * Each stage says when it begins relative to the one before it:
- *   after — the next working day after the previous stage ends
+ *   after — starts one calendar day after the previous stage ends
  *   with  — the same day the previous stage begins
  *   into  — N working days after the previous stage begins
  * The first stage always begins on the project start date.
@@ -109,8 +109,8 @@ export function schedule(p: ProjectTimeline, engine: Engine): ScheduleResult[] {
         engine.holidays
       );
     } else {
-      // 'after' — waits for every stage above it, not just the one directly above.
-      start = nextWork(add(latest as Date, 1), engine.satRule, engine.holidays);
+      // 'after' — exactly one calendar day after the latest end of stages above.
+      start = add(latest as Date, 1);
     }
     const end = plusWork(
       start,

@@ -10,9 +10,10 @@ interface TimelineListProps {
   empty: boolean;
   onNew: () => void;
   onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
-export function TimelineList({ projects, holidays, satRule, empty, onNew, onOpen }: TimelineListProps) {
+export function TimelineList({ projects, holidays, satRule, empty, onNew, onOpen, onDelete }: TimelineListProps) {
   const cards = useMemo(() => {
     return projects.map((p) => {
       const engine = { satRule, holidays };
@@ -70,6 +71,7 @@ export function TimelineList({ projects, holidays, satRule, empty, onNew, onOpen
             endDate={c.endDate}
             weeks={c.weeks}
             onClick={() => onOpen(c.project.id)}
+            onDelete={onDelete}
           />
         ))}
       </div>

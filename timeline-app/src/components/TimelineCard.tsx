@@ -1,5 +1,6 @@
 import type { ProjectTimeline } from '../types/timeline';
 import { fmt, iso } from '../utils/dateUtils';
+import { Trash2 } from 'lucide-react';
 
 interface TimelineCardProps {
   project: ProjectTimeline;
@@ -7,9 +8,10 @@ interface TimelineCardProps {
   endDate: Date;
   weeks: number;
   onClick: () => void;
+  onDelete: (id: string) => void;
 }
 
-export function TimelineCard({ project, startDate, endDate, weeks, onClick }: TimelineCardProps) {
+export function TimelineCard({ project, startDate, endDate, weeks, onClick, onDelete }: TimelineCardProps) {
   return (
     <div
       className="card prow"
@@ -39,6 +41,17 @@ export function TimelineCard({ project, startDate, endDate, weeks, onClick }: Ti
         {weeks}
         <span>weeks</span>
       </div>
+      <button
+        className="btn ghost sm prow-del"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(project.id);
+        }}
+        title="Delete timeline"
+        aria-label={`Delete ${project.projectName || 'timeline'}`}
+      >
+        <Trash2 size={14} /> Delete
+      </button>
     </div>
   );
 }
