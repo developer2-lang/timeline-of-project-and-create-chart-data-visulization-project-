@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { Info, Mail, Eye, UserCheck, FileText, GitBranch, Circle } from 'lucide-react';
 import type { Holiday, ProjectTimeline } from '../types/timeline';
 import { add, diff, fmtS, iso, monday, pd, today, MON } from '../utils/dateUtils';
@@ -8,7 +8,7 @@ import { schedule, span } from '../utils/timelineCalculations';
 const DAY_W = 22;
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-const STAGE_PALETTE = [
+export const STAGE_PALETTE = [
   { bg: '#f1e8ff', icon: '#7c3aed', bar: 'linear-gradient(135deg, #7c3aed, #6d28d9)' },
   { bg: '#e7f8ec', icon: '#16a34a', bar: 'linear-gradient(135deg, #22c55e, #16a34a)' },
   { bg: '#fff0dc', icon: '#f97316', bar: 'linear-gradient(135deg, #f59e0b, #f97316)' },
@@ -106,6 +106,27 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   }, [s, n, holidays]);
 
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
+
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const tlRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const wrapEl = wrapRef.current;
+    const tlEl = tlRef.current;
+    if (!wrapEl || !tlEl) return;
+
+    const update = () => {
+      const wrapWidth = wrapEl.clientWidth;
+      const tlWidth = tlEl.scrollWidth;
+      setScale(tlWidth > wrapWidth ? wrapWidth / tlWidth : 1);
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrapEl);
+    return () => ro.disconnect();
+  }, [n]);
 
   const fmtFull = (dateStr: string) => {
     const d = pd(dateStr);
@@ -218,8 +239,8 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   });
 
   return (
-    <div className="tl-wrap">
-      <div className="tl">
+    <div className="tl-wrap" ref={wrapRef}>
+      <div className="tl" ref={tlRef} style={scale < 1 ? { transform: `scaleX(${scale})`, transformOrigin: '0 0' } : undefined}>
         <div className="tl-row tl-head">
           <div className="tl-lab tl-head-lab">
             <span>Stage</span>

@@ -646,6 +646,7 @@ function AppShell() {
                   projects={projects}
                   holidays={holidays}
                   satRule={satRule}
+                  studio={studio}
                   saveProjectField={saveProjectField}
                   saveStageField={saveStageField}
                   saveStageFixed={saveStageFixed}
@@ -690,6 +691,7 @@ interface ProjectDetailProps {
   projects: ProjectTimeline[];
   holidays: Holiday[];
   satRule: boolean;
+  studio: StudioSettings;
   saveProjectField: (
     id: string,
     field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version',
@@ -708,6 +710,7 @@ function ProjectDetail({
   projects,
   holidays,
   satRule,
+  studio,
   saveProjectField,
   saveStageField,
   saveStageFixed,
@@ -739,6 +742,7 @@ function ProjectDetail({
       project={project}
       holidays={holidays}
       satRule={satRule}
+      studio={studio}
       onSaveProjectField={(field, value) => saveProjectField(project.id, field, value)}
       onStageField={(sid, field, value) => saveStageField(project.id, sid, field, value)}
       onStageFixed={(sid, val, _currentStart) => saveStageFixed(project.id, sid, val)}

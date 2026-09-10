@@ -643,7 +643,7 @@ h2::before {
 
 /* timeline */
 .tl-wrap {
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid #e6e9ef;
   border-radius: 16px;
   background: #ffffff;
@@ -716,6 +716,7 @@ h2::before {
   position: relative;
   display: flex;
   height: 72px;
+  overflow: hidden;
 }
 .tl-grid-bg {
   position: absolute;

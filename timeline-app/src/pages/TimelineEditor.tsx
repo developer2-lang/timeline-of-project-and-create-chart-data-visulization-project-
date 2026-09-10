@@ -1,12 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Download, Mail, Trash2, ChevronLeft } from 'lucide-react';
+import { Plus, Download, FileText, Mail, Trash2, ChevronLeft } from 'lucide-react';
+import { generateTimelinePdf, sanitiseFileName } from '../utils/pdfExport';
 import { StageList } from '../components/StageList';
 import { GanttChart } from '../components/GanttChart';
+import { TimelinePdfSheet } from '../components/TimelinePdfSheet';
 import { useModal } from '../components/ModalContext';
 import { AddStageForm, type AddStageFormValues } from '../components/AddStageForm';
 import useToast from '../components/useToast';
-import type { Holiday, ProjectTimeline } from '../types/timeline';
+import type { Holiday, ProjectTimeline, StudioSettings } from '../types/timeline';
 import { schedule, span } from '../utils/timelineCalculations';
 import { fmt, iso } from '../utils/dateUtils';
 
@@ -14,6 +16,7 @@ interface TimelineEditorProps {
   project: ProjectTimeline;
   holidays: Holiday[];
   satRule: boolean;
+  studio: StudioSettings;
   onSaveProjectField: (field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version', value: string) => void;
   onStageField: (id: string, field: string, value: unknown) => void;
   onStageFixed: (id: string, val: string | null, currentStart: string) => void;
@@ -28,6 +31,7 @@ export function TimelineEditor({
   project,
   holidays,
   satRule,
+  studio,
   onSaveProjectField,
   onStageField,
   onStageFixed,
@@ -40,6 +44,7 @@ export function TimelineEditor({
   const { confirmBox, openModal } = useModal();
   const toast = useToast();
 
+  const pdfSheetRef = useRef<HTMLDivElement>(null);
   const engine = useMemo(() => ({ satRule, holidays }), [satRule, holidays]);
   const s = useMemo(() => span(project, engine), [project, engine]);
 
@@ -87,7 +92,46 @@ export function TimelineEditor({
     toast('Timeline summary downloaded.');
   };
 
-  const handleEmail = () => {
+  const downloadPdfBlob = async () => {
+    const sheet = pdfSheetRef.current;
+    if (!sheet) return;
+
+    const fileName = sanitiseFileName(project.projectName) + '-timeline.pdf';
+    const title = `${project.projectName} — project timeline ${project.version}`;
+
+    const host = sheet.parentElement as HTMLElement | null;
+    const prevStyle = host ? host.getAttribute('style') : null;
+    try {
+      if (host) {
+        host.style.cssText =
+          'position:fixed;inset:0;z-index:500;overflow:auto;background:var(--paper);display:flex;justify-content:center;align-items:flex-start;padding:24px;';
+      }
+      const blob = await generateTimelinePdf(sheet, fileName, title);
+      const url = URL.createObjectURL(blob);
+
+      window.open(url, '_blank');
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      toast(`Timeline PDF downloaded as ${fileName}`);
+    } finally {
+      if (host) {
+        if (prevStyle) {
+          host.setAttribute('style', prevStyle);
+        } else {
+          host.removeAttribute('style');
+        }
+      }
+    }
+  };
+
+  const handleEmail = async () => {
     const S = schedule(project, engine);
     const lines = project.stages.map((st) => {
       const r = S.find((x) => x.stageId === st.id);
@@ -98,9 +142,44 @@ export function TimelineEditor({
     const body = `Dear ${project.clientName || 'team'},\n\nPlease find the project timeline for ${project.projectName}${
       project.projectCode ? ' (' + project.projectCode + ')' : ''
     }, version ${project.version}.\n\nThe programme runs ${s.weeks} weeks, from ${fmt(iso(s.start))} to ${fmt(iso(s.end))}.\n\nSTAGES\n\n${lines.join('\n\n')}`;
+    const fileName = sanitiseFileName(project.projectName) + '-timeline.pdf';
+    const title = `${project.projectName} — project timeline ${project.version}`;
+
+    const sheet = pdfSheetRef.current;
+    if (sheet) {
+      const host = sheet.parentElement as HTMLElement | null;
+      const prevStyle = host ? host.getAttribute('style') : null;
+      try {
+        if (host) {
+          host.style.cssText =
+            'position:fixed;inset:0;z-index:500;overflow:auto;background:var(--paper);display:flex;justify-content:center;align-items:flex-start;padding:24px;';
+        }
+        const blob = await generateTimelinePdf(sheet, fileName, title);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } finally {
+        if (host) {
+          if (prevStyle) {
+            host.setAttribute('style', prevStyle);
+          } else {
+            host.removeAttribute('style');
+          }
+        }
+      }
+    }
+
     window.location.href =
-      'mailto:?subject=' + encodeURIComponent(`${project.projectName} — project timeline ${project.version}`) + '&body=' + encodeURIComponent(body);
-    toast('Mail draft opened.');
+      'mailto:?subject=' +
+      encodeURIComponent(`${project.projectName} — project timeline ${project.version}`) +
+      '&body=' +
+      encodeURIComponent(body);
+    toast(`Timeline PDF downloaded as ${fileName} — attach it to the email draft.`);
   };
 
   return (
@@ -118,6 +197,9 @@ export function TimelineEditor({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn" onClick={downloadPdfBlob}>
+            <FileText size={15} /> Download PDF
+          </button>
           <button className="btn primary" onClick={handleExport}>
             <Download size={15} /> Export
           </button>
@@ -230,6 +312,16 @@ export function TimelineEditor({
           <h2>Timeline</h2>
         </div>
         <GanttChart project={project} satRule={satRule} holidays={holidays} />
+      </div>
+
+      <div className="pdf-print-host" aria-hidden="true">
+        <TimelinePdfSheet
+          ref={pdfSheetRef}
+          project={project}
+          satRule={satRule}
+          holidays={holidays}
+          studio={studio}
+        />
       </div>
     </>
   );
