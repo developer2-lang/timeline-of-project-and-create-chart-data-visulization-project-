@@ -17,8 +17,8 @@ export interface Engine {
 
 /**
  * Calculate the end date for a stage that starts on `startDate` and lasts
- * `durationDays` working days. Working days exclude Sundays, Saturdays that
- * fall on the 2nd/4th of a month (when satRule is on) and public holidays.
+ * `durationDays` working days. Working days exclude only Sundays and declared
+ * public holidays; all Saturdays are working days.
  *
  * This is the single, centralized place stages turn a start date + working
  * duration into an end date. It reuses the same working-day engine that the

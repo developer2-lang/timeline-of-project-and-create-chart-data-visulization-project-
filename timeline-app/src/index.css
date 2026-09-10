@@ -457,7 +457,10 @@ h2::before {
   margin-top: 4px;
 }
 .stage .delete-btn {
-  color: #c7ccc8;
+  color: #c0392b;
+  border: 1px solid #c0392b;
+  background: transparent;
+  border-radius: var(--r);
   padding: 4px 8px;
   flex-shrink: 0;
   display: inline-flex;
@@ -465,11 +468,14 @@ h2::before {
   gap: 4px;
 }
 .stage .delete-btn:hover {
-  color: #c0392b;
-  background: var(--line-soft);
+  color: #fff;
+  background: #c0392b;
 }
 .stage .edit-btn {
-  color: var(--ink-muted);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: var(--r);
   padding: 4px 8px;
   flex-shrink: 0;
   display: inline-flex;
@@ -478,6 +484,7 @@ h2::before {
 }
 .stage .edit-btn:hover {
   color: var(--ink);
+  border-color: var(--ink-muted);
   background: var(--line-soft);
 }
 .stage .done-btn {

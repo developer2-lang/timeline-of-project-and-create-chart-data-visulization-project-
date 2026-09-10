@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { DependencyType, Holiday, ProjectTimeline } from '../types/timeline';
+import type { Holiday, ProjectTimeline, Stage } from '../types/timeline';
 import { StageRow, type StageRowView } from './StageRow';
 import { schedule, notices as calcNotices, weekLabel } from '../utils/timelineCalculations';
 
@@ -7,12 +7,7 @@ interface StageListProps {
   project: ProjectTimeline;
   satRule: boolean;
   holidays: Holiday[];
-  onName: (id: string, name: string) => void;
-  onDesc: (id: string, desc: string) => void;
-  onDays: (id: string, days: number) => void;
-  onRule: (id: string, rule: DependencyType) => void;
-  onOffset: (id: string, offset: number) => void;
-  onFixed: (id: string, val: string | null, currentStart: string) => void;
+  onEdit: (stage: Stage) => void;
   onDelete: (id: string) => void;
   onReorder: (fromId: string, toId: string) => void;
 }
@@ -21,12 +16,7 @@ export function StageList({
   project,
   satRule,
   holidays,
-  onName,
-  onDesc,
-  onDays,
-  onRule,
-  onOffset,
-  onFixed,
+  onEdit,
   onDelete,
   onReorder,
 }: StageListProps) {
@@ -76,14 +66,8 @@ export function StageList({
         <StageRow
           key={st.id}
           stage={st}
-          isFirst={project.stages[0] && project.stages[0].id === st.id}
           view={views[st.id] || { start: '', end: '', weekLabel: '', notices: [] }}
-          onName={onName}
-          onDesc={onDesc}
-          onDays={onDays}
-          onRule={onRule}
-          onOffset={onOffset}
-          onFixed={onFixed}
+          onEdit={onEdit}
           onDelete={onDelete}
           onDragStart={(id) => setDragId(id)}
           onDragOver={(id) => setOverId(id)}

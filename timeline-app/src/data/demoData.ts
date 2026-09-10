@@ -22,7 +22,6 @@ export const DEMO_HOLIDAYS: Omit<Holiday, 'id'>[] = [
   { holidayDate: '2026-05-28', holidayName: 'Bakri Id' },
   { holidayDate: '2026-06-26', holidayName: 'Muharram' },
   { holidayDate: '2026-08-15', holidayName: 'Independence Day' },
-  { holidayDate: '2026-09-14', holidayName: 'Ganesh Chaturthi' },
   { holidayDate: '2026-10-02', holidayName: 'Gandhi Jayanti' },
   { holidayDate: '2026-10-20', holidayName: 'Dussehra' },
   { holidayDate: '2026-11-08', holidayName: 'Diwali — Laxmi Pujan' },

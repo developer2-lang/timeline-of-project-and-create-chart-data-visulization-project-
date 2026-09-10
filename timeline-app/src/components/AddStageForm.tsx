@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useModal } from './ModalContext';
 import type { Engine } from '../utils/timelineCalculations';
-import { scheduleAppendedStage, calculateStageEndDate } from '../utils/timelineCalculations';
+import { schedule, scheduleAppendedStage, calculateStageEndDate } from '../utils/timelineCalculations';
 import { fmt } from '../utils/dateUtils';
-import type { Holiday, ProjectTimeline, ScheduleMode, StageInput } from '../types/timeline';
+import type { Holiday, ProjectTimeline, ScheduleMode, Stage, StageInput } from '../types/timeline';
 
 export type AddStageFormValues = StageInput;
 
@@ -12,17 +12,33 @@ interface AddStageFormProps {
   satRule: boolean;
   holidays: Holiday[];
   onSubmit: (values: AddStageFormValues) => Promise<void>;
+  mode?: 'add' | 'edit';
+  stage?: Stage;
+  onUpdate?: (values: AddStageFormValues) => Promise<void>;
 }
 
-export function AddStageForm({ project, satRule, holidays, onSubmit }: AddStageFormProps) {
-  const { closeModal } = useModal();
-  const isFirst = project.stages.length === 0;
+function stageToScheduleMode(stage: Stage): ScheduleMode {
+  if (stage.fixedStart) return 'fixed';
+  if (stage.dependencyType === 'with') return 'with';
+  return 'after';
+}
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [durationDays, setDurationDays] = useState(5);
-  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('after');
-  const [fixedStart, setFixedStart] = useState(project.startDate || '');
+export function AddStageForm({ project, satRule, holidays, onSubmit, mode = 'add', stage, onUpdate }: AddStageFormProps) {
+  const { closeModal } = useModal();
+  const isEdit = mode === 'edit';
+  const isFirst = isEdit
+    ? project.stages.length <= 1 || (stage && project.stages[0]?.id === stage.id)
+    : project.stages.length === 0;
+
+  const [name, setName] = useState(stage?.name ?? '');
+  const [description, setDescription] = useState(stage?.description ?? '');
+  const [durationDays, setDurationDays] = useState(stage?.durationDays ?? 5);
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>(
+    isEdit && stage ? stageToScheduleMode(stage) : 'after'
+  );
+  const [fixedStart, setFixedStart] = useState(
+    stage?.fixedStart ?? project.startDate ?? ''
+  );
   const [fieldError, setFieldError] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -31,6 +47,32 @@ export function AddStageForm({ project, satRule, holidays, onSubmit }: AddStageF
 
   const preview = useMemo(() => {
     const days = Math.max(1, Number(durationDays) || 1);
+
+    if (isEdit && stage) {
+      // In edit mode, replace the stage in the project at its current position
+      const modified: Stage = {
+        ...stage,
+        name: name.trim(),
+        description: description.trim(),
+        durationDays: days,
+        dependencyType: scheduleMode === 'with' ? 'with' : 'after',
+        offsetDays: stage.offsetDays,
+        fixedStart: scheduleMode === 'fixed' ? fixedStart : null,
+      };
+      const idx = project.stages.findIndex((s) => s.id === stage.id);
+      const stagesBefore = project.stages.slice(0, idx);
+      const stagesAfter = project.stages.slice(idx + 1);
+      const projectForPreview: ProjectTimeline = {
+        ...project,
+        stages: [...stagesBefore, modified, ...stagesAfter],
+      };
+      const S = schedule(projectForPreview, engine);
+      const r = S.find((x) => x.stageId === stage.id);
+      if (!r) return null;
+      return { start: r.start, end: r.end };
+    }
+
+    // Add mode
     const input = { name, description, durationDays: days, scheduleMode, fixedStart };
     if (scheduleMode === 'fixed') {
       if (!fixedStart) return null;
@@ -38,7 +80,7 @@ export function AddStageForm({ project, satRule, holidays, onSubmit }: AddStageF
       return { start, end: calculateStageEndDate(start, days, engine) };
     }
     return scheduleAppendedStage(project, input, engine);
-  }, [name, description, durationDays, scheduleMode, fixedStart, project, engine]);
+  }, [name, description, durationDays, scheduleMode, fixedStart, project, engine, isEdit, stage]);
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -58,17 +100,21 @@ export function AddStageForm({ project, satRule, holidays, onSubmit }: AddStageF
     setSubmitError(null);
     setSaving(true);
     try {
-      await onSubmit({
+      const values: AddStageFormValues = {
         name: name.trim(),
         description: description.trim(),
         durationDays: Math.max(1, Number(durationDays) || 1),
         scheduleMode,
         fixedStart,
-      });
+      };
+      if (isEdit && onUpdate) {
+        await onUpdate(values);
+      } else {
+        await onSubmit(values);
+      }
       closeModal();
     } catch (e) {
-      // Keep the modal open and surface the actual Supabase error.
-      console.error('Add stage failed:', e);
+      console.error(isEdit ? 'Edit stage failed:' : 'Add stage failed:', e);
       setSubmitError(
         'Could not save the stage to the database. Check your connection and try again.'
       );
@@ -203,7 +249,7 @@ export function AddStageForm({ project, satRule, holidays, onSubmit }: AddStageF
       {submitError && <div className="field-err">{submitError}</div>}
 
       <button className="btn primary" onClick={submit} disabled={saving}>
-        {saving ? 'Saving…' : 'Add stage'}
+        {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add stage'}
       </button>
     </>
   );

@@ -2,34 +2,33 @@ import { add, iso } from './dateUtils';
 import type { Holiday } from '../types/timeline';
 
 /**
- * Working calendar rules from timeline.html:
- *  - Sundays are always off.
- *  - If satRule is enabled, the 2nd and 4th Saturday of each month are off.
- *  - Declared public holidays are off.
+ * Working calendar rules:
+ *  - Only Sundays are non-working days (Sunday = 0).
+ *  - Monday through Saturday are always working days.
+ *  - The 2nd and 4th Saturday are never excluded.
+ *  - Public holidays never change a date's working-day status.
+ *
+ * `satRule` and `holidays` are accepted for API compatibility but ignored —
+ * the working-day rule is centralized in `isWorkingDay`.
  */
 
-/** Which occurrence of the weekday within the month (1..5). */
-function nthSat(d: Date): number {
-  return Math.floor((d.getDate() - 1) / 7) + 1;
+/** The single, centralized working-day rule: only Sunday is non-working. */
+export function isWorkingDay(d: Date): boolean {
+  return d.getDay() !== 0;
 }
 
+/** Is the given date a Sunday? Sundays are the only weekly non-working day. */
 export function weekOff(d: Date): boolean {
-  const g = d.getDay();
-  if (g === 0) return true;
-  if (g === 6) {
-    const n = nthSat(d);
-    return n === 2 || n === 4;
-  }
-  return false;
+  return !isWorkingDay(d);
 }
 
 export function holidayMatch(d: Date, holidays: Holiday[]): Holiday | undefined {
   return holidays.find((h) => h.holidayDate === iso(d));
 }
 
-/** Is the given date a non-working day given the current rules and holidays? */
-export function offDay(d: Date, satRule: boolean, holidays: Holiday[]): boolean {
-  return (satRule ? weekOff(d) : d.getDay() === 0) || !!holidayMatch(d, holidays);
+/** Is the given date a non-working day? Only Sundays (never public holidays). */
+export function offDay(d: Date, _satRule: boolean, _holidays: Holiday[]): boolean {
+  return !isWorkingDay(d);
 }
 
 /** Advance to the next working day at or after d. */

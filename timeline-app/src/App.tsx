@@ -314,56 +314,44 @@ function AppShell() {
     [toast]
   );
 
-  const saveStageField = useCallback(
-    async (projectId: string, id: string, field: string, value: unknown) => {
-      const current = projects.find((p) => p.id === projectId);
-      if (!current) return;
-      const updated = {
-        ...current,
-        stages: current.stages.map((st) => (st.id === id ? { ...st, [field]: value } : st)),
-      };
-      // Recompute the resolved dates so the stage's start/end stay in sync with
-      // the edit (e.g. duration, dependency, offset). The timeline chart renders
-      // from these actual dates, so they must reflect the current stage data.
-      const synced = syncScheduleDates(updated, { satRule, holidays });
-      setProjects((prev) => prev.map((p) => (p.id === projectId ? synced : p)));
-      if (!isSupabaseConfigured) return;
-      try {
-        const st = synced.stages.find((s) => s.id === id);
-        if (st) await stageService.updateStage(id, st);
-      } catch (e) {
-        console.error(e);
-        toast('Could not save the stage.');
-      }
-    },
-    [projects, satRule, holidays, toast]
-  );
+  const updateStage = useCallback(
+    async (projectId: string, stageId: string, input: StageInput) => {
+      const p = projects.find((x) => x.id === projectId);
+      if (!p) return;
+      const engine = { satRule, holidays };
+      const idx = p.stages.findIndex((st) => st.id === stageId);
+      if (idx < 0) return;
 
-  const saveStageFixed = useCallback(
-    async (projectId: string, id: string, val: string | null) => {
-      const current = projects.find((x) => x.id === projectId);
-      if (!current) return;
-      let fixedRef: string | null = null;
-      if (val) {
-        const idx = current.stages.findIndex((st) => st.id === id);
-        if (idx >= 0) {
-          const S = schedule(current, { satRule, holidays });
-          fixedRef = latestAboveEnd(S, idx);
-        }
+      const existing = p.stages[idx];
+
+      let fixedRef: string | null = existing.fixedRef;
+      if (input.scheduleMode === 'fixed' && input.fixedStart) {
+        const S = schedule(p, engine);
+        fixedRef = latestAboveEnd(S, idx);
       }
-      const updated = {
-        ...current,
-        stages: current.stages.map((st) => (st.id === id ? { ...st, fixedStart: val, fixedRef } : st)),
+
+      const updated: Stage = {
+        ...existing,
+        name: input.name,
+        description: input.description,
+        durationDays: Math.max(1, Number(input.durationDays) || 1),
+        dependencyType: input.scheduleMode === 'with' ? 'with' : 'after',
+        fixedStart: input.scheduleMode === 'fixed' ? input.fixedStart : null,
+        fixedRef: input.scheduleMode === 'fixed' ? fixedRef : null,
       };
-      // Recompute the resolved dates so the chart reflects the fixed start date.
-      const synced = syncScheduleDates(updated, { satRule, holidays });
-      setProjects((prev) =>
-        prev.map((p) => (p.id === projectId ? synced : p))
-      );
+
+      const projectWithUpdate: ProjectTimeline = {
+        ...p,
+        stages: p.stages.map((st) => (st.id === stageId ? updated : st)),
+      };
+      const synced = syncScheduleDates(projectWithUpdate, engine);
+
+      setProjects((prev) => prev.map((x) => (x.id === projectId ? synced : x)));
+
       if (!isSupabaseConfigured) return;
       try {
-        const st = synced.stages.find((s) => s.id === id);
-        if (st) await stageService.updateStage(id, st);
+        const st = synced.stages.find((s) => s.id === stageId);
+        if (st) await stageService.updateStage(stageId, st);
       } catch (e) {
         console.error(e);
         toast('Could not save the stage.');
@@ -648,8 +636,7 @@ function AppShell() {
                   satRule={satRule}
                   studio={studio}
                   saveProjectField={saveProjectField}
-                  saveStageField={saveStageField}
-                  saveStageFixed={saveStageFixed}
+                  updateStage={updateStage}
                   addStage={addStage}
                   deleteStage={deleteStage}
                   reorderStages={reorderStages}
@@ -697,8 +684,7 @@ interface ProjectDetailProps {
     field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version',
     value: string
   ) => void;
-  saveStageField: (projectId: string, id: string, field: string, value: unknown) => void;
-  saveStageFixed: (projectId: string, id: string, val: string | null) => void;
+  updateStage: (projectId: string, stageId: string, input: StageInput) => Promise<void>;
   addStage: (projectId: string, input: StageInput) => Promise<void>;
   deleteStage: (projectId: string, id: string) => void;
   reorderStages: (projectId: string, fromId: string, toId: string) => void;
@@ -712,8 +698,7 @@ function ProjectDetail({
   satRule,
   studio,
   saveProjectField,
-  saveStageField,
-  saveStageFixed,
+  updateStage,
   addStage,
   deleteStage,
   reorderStages,
@@ -744,9 +729,8 @@ function ProjectDetail({
       satRule={satRule}
       studio={studio}
       onSaveProjectField={(field, value) => saveProjectField(project.id, field, value)}
-      onStageField={(sid, field, value) => saveStageField(project.id, sid, field, value)}
-      onStageFixed={(sid, val, _currentStart) => saveStageFixed(project.id, sid, val)}
       onAddStage={(values) => addStage(project.id, values)}
+      onEditStage={(sid, values) => updateStage(project.id, sid, values)}
       onDeleteStage={(sid) => deleteStage(project.id, sid)}
       onReorder={(fromId, toId) => reorderStages(project.id, fromId, toId)}
       onDeleteProject={() => {

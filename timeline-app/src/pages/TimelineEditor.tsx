@@ -8,7 +8,7 @@ import { TimelinePdfSheet } from '../components/TimelinePdfSheet';
 import { useModal } from '../components/ModalContext';
 import { AddStageForm, type AddStageFormValues } from '../components/AddStageForm';
 import useToast from '../components/useToast';
-import type { Holiday, ProjectTimeline, StudioSettings } from '../types/timeline';
+import type { Holiday, ProjectTimeline, Stage, StudioSettings } from '../types/timeline';
 import { schedule, span } from '../utils/timelineCalculations';
 import { fmt, iso } from '../utils/dateUtils';
 
@@ -18,9 +18,8 @@ interface TimelineEditorProps {
   satRule: boolean;
   studio: StudioSettings;
   onSaveProjectField: (field: 'projectName' | 'clientName' | 'projectCode' | 'startDate' | 'preparedBy' | 'version', value: string) => void;
-  onStageField: (id: string, field: string, value: unknown) => void;
-  onStageFixed: (id: string, val: string | null, currentStart: string) => void;
   onAddStage: (values: AddStageFormValues) => Promise<void>;
+  onEditStage: (stageId: string, values: AddStageFormValues) => Promise<void>;
   onDeleteStage: (id: string) => void;
   onReorder: (fromId: string, toId: string) => void;
   onDeleteProject: () => void;
@@ -33,9 +32,8 @@ export function TimelineEditor({
   satRule,
   studio,
   onSaveProjectField,
-  onStageField,
-  onStageFixed,
   onAddStage,
+  onEditStage,
   onDeleteStage,
   onReorder,
   onDeleteProject,
@@ -53,6 +51,22 @@ export function TimelineEditor({
       'Delete this stage?',
       <div className="muted">This stage will be permanently removed from this project.</div>,
       [{ label: 'Delete', cls: 'btn primary', act: () => onDeleteStage(stageId) }]
+    );
+  };
+
+  const handleEditStage = (stage: Stage) => {
+    openModal(
+      'Edit stage',
+      <AddStageForm
+        project={project}
+        satRule={satRule}
+        holidays={holidays}
+        onSubmit={onAddStage}
+        mode="edit"
+        stage={stage}
+        onUpdate={(values) => onEditStage(stage.id, values)}
+      />,
+      []
     );
   };
 
@@ -292,12 +306,7 @@ export function TimelineEditor({
             project={project}
             satRule={satRule}
             holidays={holidays}
-            onName={(id, name) => onStageField(id, 'name', name)}
-            onDesc={(id, desc) => onStageField(id, 'description', desc)}
-            onDays={(id, days) => onStageField(id, 'durationDays', days)}
-            onRule={(id, rule) => onStageField(id, 'dependencyType', rule)}
-            onOffset={(id, offset) => onStageField(id, 'offsetDays', offset)}
-            onFixed={onStageFixed}
+            onEdit={handleEditStage}
             onDelete={handleDeleteStage}
             onReorder={onReorder}
           />
