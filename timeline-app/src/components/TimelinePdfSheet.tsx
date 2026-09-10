@@ -7,9 +7,12 @@ import { STAGE_PALETTE } from './GanttChart';
 import logoUrl from '../assets/iuova-logo.png';
 import './TimelinePdfSheet.css';
 
-const CHART_SPACE = 730;
-const WEEK_W_MIN = 20;
-const WEEK_W_MAX = 96;
+const SHEET_W = 1040;
+const LABEL_W = 230;
+const PADDING_X = 32;
+const CHART_SPACE = SHEET_W - PADDING_X - LABEL_W;
+const WEEK_W_MIN = 22;
+const WEEK_W_MAX = 104;
 
 interface TimelinePdfSheetProps {
   project: ProjectTimeline;

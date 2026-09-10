@@ -4,9 +4,9 @@ import { jsPDF } from 'jspdf';
 const MM_PER_PX = 25.4 / 96;
 const PAGE_W_MM = 297;
 const PAGE_H_MM = 210;
-const MARGIN_MM = 11;
+const MARGIN_MM = 8;
 
-/** Printable A4-landscape area in CSS pixels at 96dpi (~ 1039 x 710). */
+/** Printable A4-landscape area in CSS pixels at 96dpi (~ 1062 x 733). */
 const BOX_W_PX = (PAGE_W_MM - MARGIN_MM * 2) / MM_PER_PX;
 const BOX_H_PX = (PAGE_H_MM - MARGIN_MM * 2) / MM_PER_PX;
 
