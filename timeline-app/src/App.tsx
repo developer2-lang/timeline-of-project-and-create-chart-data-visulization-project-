@@ -603,7 +603,7 @@ function AppShell() {
   }, []);
 
   const Shell = () => (
-    <>
+    <div className="app-container">
       <Navbar onDemoData={loadDemoData} onReload={loadAll} onClear={clearAll} busy={busy || loading} />
       <div className="wrap">
         {error && (
@@ -668,7 +668,7 @@ function AppShell() {
           </Routes>
         )}
       </div>
-    </>
+    </div>
   );
 
   return <Shell />;

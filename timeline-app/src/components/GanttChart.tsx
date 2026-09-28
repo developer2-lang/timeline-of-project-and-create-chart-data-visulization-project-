@@ -5,7 +5,7 @@ import { add, diff, fmtS, iso, monday, pd, today, MON } from '../utils/dateUtils
 import { holidayMatch, offDay } from '../utils/workingDays';
 import { schedule, span } from '../utils/timelineCalculations';
 
-const DAY_W = 22;
+const MIN_DAY_W = 22;
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export const STAGE_PALETTE = [
@@ -84,10 +84,42 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
     };
   }, [rows, project, engine]);
 
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [wrapWidth, setWrapWidth] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerWidth - 64 : 0
+  );
+
+  useEffect(() => {
+    const wrapEl = wrapRef.current;
+    if (!wrapEl) return;
+
+    const handleResize = () => {
+      if (wrapEl.clientWidth > 0) {
+        setWrapWidth(wrapEl.clientWidth);
+      }
+    };
+
+    handleResize();
+    const ro = new ResizeObserver(handleResize);
+    ro.observe(wrapEl);
+    return () => ro.disconnect();
+  }, []);
+
   const n = Math.max(s.weeks, 1);
-  const total = n * 7 * DAY_W;
+  const totalDays = n * 7;
+  // Label width is 300px on desktop, 220px on <= 760px screens
+  const labelWidth = wrapWidth > 0 && wrapWidth <= 760 ? 220 : 300;
+  // Track space available inside the wrap container
+  const availableTrackWidth = Math.max(0, (wrapWidth || 0) - labelWidth - 2);
+  const dayWidth = useMemo(() => {
+    if (!availableTrackWidth || totalDays <= 0) return MIN_DAY_W;
+    return Math.max(MIN_DAY_W, availableTrackWidth / totalDays);
+  }, [availableTrackWidth, totalDays]);
+
+  const weekWidth = dayWidth * 7;
+  const total = totalDays * dayWidth;
   const startDay = diff(s.w0, today());
-  const dayPos = (dateStr: string) => diff(s.w0, pd(dateStr) as Date) * DAY_W;
+  const dayPos = (dateStr: string) => diff(s.w0, pd(dateStr) as Date) * dayWidth;
 
   const weekRanges = useMemo(() => {
     return Array.from({ length: n }, (_, i) => {
@@ -107,27 +139,6 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
 
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const tlRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const wrapEl = wrapRef.current;
-    const tlEl = tlRef.current;
-    if (!wrapEl || !tlEl) return;
-
-    const update = () => {
-      const wrapWidth = wrapEl.clientWidth;
-      const tlWidth = tlEl.scrollWidth;
-      setScale(tlWidth > wrapWidth ? wrapWidth / tlWidth : 1);
-    };
-
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(wrapEl);
-    return () => ro.disconnect();
-  }, [n]);
-
   const fmtFull = (dateStr: string) => {
     const d = pd(dateStr);
     return d
@@ -145,7 +156,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   const rowsEl = rows.map((d) => {
     const x = dayPos(d.start);
     const barDays = Math.max(1, diff(pd(d.start) as Date, pd(d.end) as Date) + 1);
-    const w = barDays * DAY_W;
+    const w = barDays * dayWidth;
     const showLabel = w >= 36;
     const palette = STAGE_PALETTE[d.stageIndex % STAGE_PALETTE.length];
     const StageIcon = STAGE_ICONS[d.stageIndex % STAGE_ICONS.length];
@@ -167,14 +178,14 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
         </div>
         <div className="tl-track" style={{ width: total, minWidth: total }}>
           <div className="tl-grid-bg">
-            {Array.from({ length: n * 7 }, (_, di) => {
+            {Array.from({ length: totalDays }, (_, di) => {
               const cellDate = add(s.w0, di);
               if (holidayMatch(cellDate, holidays)) {
                 return (
                   <div
                     key={di}
                     className="tl-holiday-bg"
-                    style={{ left: di * DAY_W, width: DAY_W }}
+                    style={{ left: di * dayWidth, width: dayWidth }}
                   />
                 );
               }
@@ -184,27 +195,27 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
                   <div
                     key={di}
                     className={dow === 0 ? 'tl-sunday-bg' : 'tl-nonwork-bg'}
-                    style={{ left: di * DAY_W, width: DAY_W }}
+                    style={{ left: di * dayWidth, width: dayWidth }}
                   />
                 );
               }
               return null;
             })}
           </div>
-          {Array.from({ length: n * 7 }, (_, di) => (
+          {Array.from({ length: totalDays }, (_, di) => (
             <div
               className="tl-day-col-border"
               key={di}
-              style={{ left: di * DAY_W, width: DAY_W }}
+              style={{ left: di * dayWidth, width: dayWidth }}
             />
           ))}
           {Array.from({ length: n }, (_, i) => (
-            <div className="tl-cell" key={i} />
+            <div className="tl-cell" key={i} style={{ width: weekWidth, minWidth: weekWidth }} />
           ))}
-          {startDay >= 0 && startDay <= n * 7 && (
+          {startDay >= 0 && startDay <= totalDays && (
             <div
               className="tl-today-line"
-              style={{ left: startDay * DAY_W }}
+              style={{ left: startDay * dayWidth }}
             />
           )}
           <div
@@ -240,7 +251,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
 
   return (
     <div className="tl-wrap" ref={wrapRef}>
-      <div className="tl" ref={tlRef} style={scale < 1 ? { transform: `scaleX(${scale})`, transformOrigin: '0 0' } : undefined}>
+      <div className="tl">
         <div className="tl-row tl-head">
           <div className="tl-lab tl-head-lab">
             <span>Stage</span>
@@ -248,7 +259,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
           <div className="tl-track" style={{ width: total, minWidth: total }}>
             <div className="tl-week-row">
               {weekRanges.map((wr, i) => (
-                <div className="wk-head" key={i}>
+                <div className="wk-head" key={i} style={{ width: weekWidth, minWidth: weekWidth }}>
                   <div className="w">W{i + 1}</div>
                   <div className="d">
                     {fmtS(iso(wr.m0))} – {fmtS(iso(wr.sun))}
@@ -262,7 +273,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
               ))}
             </div>
             <div className="tl-day-row">
-              {Array.from({ length: n * 7 }, (_, di) => {
+              {Array.from({ length: totalDays }, (_, di) => {
                 const cellDate = add(s.w0, di);
                 const dow = cellDate.getDay();
                 const dayNum = cellDate.getDate();
@@ -272,6 +283,7 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
                   <div
                     className={`tl-day-cell${isSun ? ' sunday' : ''}${isSatOff ? ' sat-off' : ''}`}
                     key={di}
+                    style={{ width: dayWidth, minWidth: dayWidth }}
                   >
                     <div className="tl-day-letter">{DOW[di % 7]}</div>
                     <div className="tl-day-num">{String(dayNum).padStart(2, '0')}</div>

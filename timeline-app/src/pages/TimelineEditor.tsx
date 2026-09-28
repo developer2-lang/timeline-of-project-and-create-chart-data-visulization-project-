@@ -316,11 +316,13 @@ export function TimelineEditor({
         </div>
       </div>
 
-      <div className="sec">
+      <div className="sec sec-timeline">
         <div className="sec-head">
           <h2>Timeline</h2>
         </div>
-        <GanttChart project={project} satRule={satRule} holidays={holidays} />
+        <div className="timeline-container">
+          <GanttChart project={project} satRule={satRule} holidays={holidays} />
+        </div>
       </div>
 
       <div className="pdf-print-host" aria-hidden="true">

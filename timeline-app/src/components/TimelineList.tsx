@@ -70,7 +70,9 @@ export function TimelineList({ projects, holidays, satRule, empty, onNew, onOpen
             startDate={c.startDate}
             endDate={c.endDate}
             weeks={c.weeks}
-            onClick={() => onOpen(c.project.id)}
+            holidays={holidays}
+            satRule={satRule}
+            onOpen={onOpen}
             onDelete={onDelete}
           />
         ))}
