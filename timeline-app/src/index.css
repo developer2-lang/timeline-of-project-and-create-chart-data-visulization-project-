@@ -395,6 +395,53 @@ h2::before {
   background: #fef2f2;
   border-color: #fecaca;
 }
+.prow-center-dropdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0 10px;
+}
+.prow-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1.5px solid #bfdbfe;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
+}
+.prow-dropdown-btn:hover {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #93c5fd;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+}
+.prow-dropdown-btn.open {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #60a5fa;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+}
+.prow-dropdown-btn .prow-center-chevron {
+  color: #2563eb;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.prow-dropdown-btn:hover .prow-center-chevron {
+  color: #1d4ed8;
+}
+.prow-dropdown-btn.open .prow-center-chevron {
+  transform: rotate(180deg);
+  color: #1d4ed8;
+}
 .prow-chevron {
   display: inline-flex;
   align-items: center;
@@ -888,16 +935,96 @@ h2::before {
   width: 100% !important;
   height: 100% !important;
   flex-grow: 1;
-  overflow: auto;
+  overflow: visible;
+}
+.tl-container-inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.tl-top-scroll-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e6e9ef;
+  border-radius: 12px;
+  padding: 6px 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(20, 35, 60, 0.04);
+}
+.tl-top-scroll-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 4px;
+  user-select: none;
+}
+.tl-scroll-arrow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.tl-scroll-arrow-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.tl-top-scrollbar {
+  flex: 1;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  height: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.tl-top-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+.tl-top-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.tl-top-scrollbar::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+.tl-top-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 .tl-wrap {
   width: 100% !important;
   height: 100% !important;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid #e6e9ef;
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(20, 35, 60, 0.08);
+  /* Hide bottom horizontal scrollbar so it appears cleanly at the top before the graph */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tl-wrap::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .tl {
   width: max-content;

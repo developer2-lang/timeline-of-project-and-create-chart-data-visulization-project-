@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { Info, Mail, Eye, UserCheck, FileText, GitBranch, Circle } from 'lucide-react';
+import { Info, Mail, Eye, UserCheck, FileText, GitBranch, Circle, ChevronLeft, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import type { Holiday, ProjectTimeline } from '../types/timeline';
 import { add, diff, fmtS, iso, monday, pd, today, MON } from '../utils/dateUtils';
 import { holidayMatch, offDay } from '../utils/workingDays';
@@ -85,6 +85,9 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   }, [rows, project, engine]);
 
   const wrapRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingRef = useRef<'top' | 'wrap' | null>(null);
+
   const [wrapWidth, setWrapWidth] = useState<number>(() =>
     typeof window !== 'undefined' ? window.innerWidth - 64 : 0
   );
@@ -120,6 +123,39 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   const total = totalDays * dayWidth;
   const startDay = diff(s.w0, today());
   const dayPos = (dateStr: string) => diff(s.w0, pd(dateStr) as Date) * dayWidth;
+
+  const isScrollable = wrapWidth > 0 ? total + labelWidth > wrapWidth : true;
+
+  const handleTopScroll = () => {
+    if (isSyncingRef.current === 'wrap') return;
+    if (!topScrollRef.current || !wrapRef.current) return;
+    isSyncingRef.current = 'top';
+    wrapRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = null;
+    });
+  };
+
+  const handleWrapScroll = () => {
+    if (isSyncingRef.current === 'top') return;
+    if (!topScrollRef.current || !wrapRef.current) return;
+    isSyncingRef.current = 'wrap';
+    topScrollRef.current.scrollLeft = wrapRef.current.scrollLeft;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = null;
+    });
+  };
+
+  const handleTopWheel = (e: React.WheelEvent) => {
+    if (e.deltaY && !e.deltaX && topScrollRef.current) {
+      topScrollRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
+  const scrollByAmount = (amount: number) => {
+    if (!wrapRef.current) return;
+    wrapRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+  };
 
   const weekRanges = useMemo(() => {
     return Array.from({ length: n }, (_, i) => {
@@ -250,7 +286,43 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
   });
 
   return (
-    <div className="tl-wrap" ref={wrapRef}>
+    <div className="tl-container-inner">
+      {isScrollable && (
+        <div className="tl-top-scroll-panel">
+          <span className="tl-top-scroll-label">
+            <ArrowLeftRight size={13} /> Scroll
+          </span>
+          <button
+            type="button"
+            className="tl-scroll-arrow-btn"
+            onClick={() => scrollByAmount(-240)}
+            title="Scroll left"
+            aria-label="Scroll timeline left"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <div
+            className="tl-top-scrollbar"
+            ref={topScrollRef}
+            onScroll={handleTopScroll}
+            onWheel={handleTopWheel}
+            title="Scroll timeline horizontally"
+          >
+            <div style={{ width: total + labelWidth, minWidth: total + labelWidth, height: 1 }} />
+          </div>
+          <button
+            type="button"
+            className="tl-scroll-arrow-btn"
+            onClick={() => scrollByAmount(240)}
+            title="Scroll right"
+            aria-label="Scroll timeline right"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      <div className="tl-wrap" ref={wrapRef} onScroll={handleWrapScroll}>
       <div className="tl">
         <div className="tl-row tl-head">
           <div className="tl-lab tl-head-lab">
@@ -327,5 +399,6 @@ export function GanttChart({ project, satRule, holidays }: GanttChartProps) {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

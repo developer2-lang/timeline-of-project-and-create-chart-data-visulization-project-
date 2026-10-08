@@ -92,6 +92,23 @@ export function TimelineCard({
           </div>
         </div>
 
+        {/* Center: Blue Dropdown Button with rotating Chevron */}
+        <div className="prow-center-dropdown">
+          <button
+            type="button"
+            className={`prow-dropdown-btn ${isExpanded ? 'open' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand();
+            }}
+            title={isExpanded ? 'Collapse dropdown' : 'Expand dropdown'}
+            aria-expanded={isExpanded}
+          >
+            <span>Dropdown</span>
+            <ChevronDown size={15} className={`prow-center-chevron ${isExpanded ? 'open' : ''}`} />
+          </button>
+        </div>
+
         <div className="dt">
           <b>{fmt(iso(startDate))}</b>
           to {fmt(iso(endDate))}
@@ -126,14 +143,6 @@ export function TimelineCard({
           >
             <Trash2 size={14} /> Delete
           </button>
-
-          <span
-            className={`prow-chevron ${isExpanded ? 'open' : ''}`}
-            aria-hidden="true"
-            title={isExpanded ? 'Collapse stages' : 'Expand stages'}
-          >
-            <ChevronDown size={18} />
-          </span>
         </div>
       </div>
 
