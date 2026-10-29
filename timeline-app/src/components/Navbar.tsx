@@ -45,6 +45,9 @@ export function Navbar({ onDemoData, onReload, onClear, busy }: NavbarProps) {
         <NavLink to="/" end className={({ isActive }) => (isActive && location.pathname === '/' ? 'on' : '')}>
           Timelines
         </NavLink>
+        <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'on' : '')}>
+          Dashboard
+        </NavLink>
         <NavLink to="/settings" className={({ isActive }) => (isActive ? 'on' : '')}>
           Settings
         </NavLink>

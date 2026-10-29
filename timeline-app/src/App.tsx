@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { useCallback, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { ToastProvider } from './components/ToastContext';
 import { ModalProvider, useModal } from './components/ModalContext';
@@ -8,6 +8,7 @@ import useToast from './components/useToast';
 import { Timelines } from './pages/Timelines';
 import { TimelineEditor } from './pages/TimelineEditor';
 import { Settings } from './pages/Settings';
+import { Dashboard } from './pages/Dashboard';
 import { isSupabaseConfigured } from './lib/supabase';
 import * as projectService from './services/projectService';
 import * as stageService from './services/stageService';
@@ -51,6 +52,7 @@ function latestAboveEnd(S: ScheduleResult[], i: number): string | null {
 }
 
 function AppShell() {
+  const location = useLocation();
   const [projects, setProjects] = useState<ProjectTimeline[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [satRule, setSatRule] = useState(true);
@@ -605,7 +607,7 @@ function AppShell() {
   const Shell = () => (
     <div className="app-container">
       <Navbar onDemoData={loadDemoData} onReload={loadAll} onClear={clearAll} busy={busy || loading} />
-      <div className="wrap">
+      <div className={location.pathname === '/dashboard' ? 'wrap wrap-dashboard' : 'wrap'}>
         {error && (
           <div className="note" role="alert">
             {error}
@@ -624,6 +626,16 @@ function AppShell() {
                   satRule={satRule}
                   onCreate={createProject}
                   onDeleteProject={deleteProject}
+                />
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <Dashboard
+                  projects={projects}
+                  holidays={holidays}
+                  satRule={satRule}
                 />
               }
             />
