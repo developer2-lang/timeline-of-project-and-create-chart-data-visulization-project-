@@ -313,12 +313,8 @@ export function DashboardGantt({ projects, holidays, satRule }: DashboardGanttPr
 
   useEffect(() => {
     if (!wrapRef.current) return;
-    const initialTarget = 0;
-    wrapRef.current.scrollLeft = initialTarget;
-    if (topScrollRef.current) {
-      topScrollRef.current.scrollLeft = initialTarget;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    wrapRef.current.scrollLeft = 0;
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
   }, []);
 
   // Normal mouse wheel over canvas automatically scrolls horizontally
